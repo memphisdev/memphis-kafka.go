@@ -15,6 +15,10 @@ func ConfigSaramaInterceptor(config *sarama.Config) {
 }
 
 func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
+	if !ClientConnection.IsProducer {
+		SendClientTypeUpdateReq(ClientConnection.ClientID, "producer")
+	}
+
 	if ClientConnection.ProducerProtoDesc != nil {
 		byte_msg, err := msg.Value.Encode()
 		if err != nil {
@@ -47,6 +51,9 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 }
 
 func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
+	if !ClientConnection.IsConsumer {
+		SendClientTypeUpdateReq(ClientConnection.ClientID, "consumer")
+	}
 
 	for i, header := range msg.Headers {
 		if string(header.Key) == "memphis_schema" {
