@@ -37,13 +37,13 @@ type RegisterResp struct {
 }
 
 type RegisterReq struct {
-	NatsClientID string `json:"natsClientId"`
-	Language     string `json:"language"`
+	NatsConnectionID string `json:"natsConnectiontId"`
+	Language         string `json:"language"`
 }
 
 type ClientReconnectionUpdateReq struct {
-	NewNatsClientID string `json:"newNatsClientId"`
-	ClientID        int    `json:"clientId"`
+	NewNatsConnectionID string `json:"newNatsConnectiontId"`
+	ClientID            int    `json:"clientId"`
 }
 
 type ClientTypeUpdateReq struct {
@@ -70,7 +70,7 @@ type SchemaUpdateReq struct {
 
 type Client struct {
 	ClientID              int
-	NatsClientID          string
+	NatsConnectionID      string
 	IsConsumer            bool
 	IsProducer            bool
 	LearningFactor        int
@@ -164,8 +164,8 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 				}
 
 				clientReconnectionUpdateReq := ClientReconnectionUpdateReq{
-					NewNatsClientID: natsConnectionID,
-					ClientID:        c.ClientID,
+					NewNatsConnectionID: natsConnectionID,
+					ClientID:            c.ClientID,
 				}
 
 				clientReconnectionUpdateReqBytes, err := json.Marshal(clientReconnectionUpdateReq)
@@ -178,7 +178,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 					memphisKafkaErr("error reconnecting to memphis cost")
 				}
 
-				c.NatsClientID = natsConnectionID
+				c.NatsConnectionID = natsConnectionID
 			},
 		),
 	}
@@ -200,15 +200,15 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 	if err != nil {
 		return fmt.Errorf("memphis_kafka: error connecting to memphis cost")
 	}
-	c.NatsClientID = natsConnectionID
+	c.NatsConnectionID = natsConnectionID
 
 	return nil
 }
 
 func (c *Client) RegisterClient() error {
 	registerReq := RegisterReq{
-		NatsClientID: c.NatsClientID,
-		Language:     "go",
+		NatsConnectionID: c.NatsConnectionID,
+		Language:         "go",
 	}
 
 	registerReqBytes, err := json.Marshal(registerReq)
@@ -230,6 +230,8 @@ func (c *Client) RegisterClient() error {
 	if registerResp.Err != "" {
 		return fmt.Errorf("memphis_kafka: account reached max number of clients")
 	}
+
+	fmt.Println(registerResp)
 
 	c.ClientID = registerResp.ClientID
 	c.LearningFactor = registerResp.LearningFactor
@@ -394,12 +396,12 @@ func SendClientTypeUpdateReq(clientID int, clientType string) {
 }
 
 func (c *Client) generateNatsConnectionID() (string, error) {
-	natsClientId, err := c.BrokerConnection.GetClientID()
+	natsConnectionId, err := c.BrokerConnection.GetClientID()
 	if err != nil {
 		return "", err
 	}
 
 	serverName := c.BrokerConnection.ConnectedServerName()
 
-	return fmt.Sprintf("%v:%v", serverName, natsClientId), nil
+	return fmt.Sprintf("%v:%v", serverName, natsConnectionId), nil
 }
