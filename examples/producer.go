@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"memphis_kafka"
 
 	"github.com/IBM/sarama"
@@ -26,7 +27,10 @@ func main() {
 	config.Net.TLS.Enable = true
 	config.Net.TLS.Config = nil
 
-	memphis_kafka.Init(token, memphis_kafka.Host("localhost:4222"))
+	err := memphis_kafka.Init(token, memphis_kafka.Host("localhost:4222"))
+	if err != nil {
+		fmt.Println(err)
+	}
 	memphis_kafka.Start(config)
 
 	producer, err := sarama.NewSyncProducer([]string{broker}, config)

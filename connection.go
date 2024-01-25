@@ -31,8 +31,9 @@ type Options struct {
 }
 
 type RegisterResp struct {
-	ClientID       int `json:"clientId"`
-	LearningFactor int `json:"learningFactor"`
+	ClientID       int    `json:"clientId"`
+	LearningFactor int    `json:"learningFactor"`
+	Err            string `json:"err"`
 }
 
 type RegisterReq struct {
@@ -224,6 +225,10 @@ func (c *Client) RegisterClient() error {
 	err = json.Unmarshal(resp.Data, &registerResp)
 	if err != nil {
 		return fmt.Errorf("memphis_kafka: error registering client")
+	}
+
+	if registerResp.Err != "" {
+		return fmt.Errorf("memphis_kafka: account reached max number of clients")
 	}
 
 	c.ClientID = registerResp.ClientID
