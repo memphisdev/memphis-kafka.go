@@ -22,6 +22,7 @@ const (
 	memphisRegisterSchemaSubject    = "memphis.schema.registerSchema.%v"
 	memphisClientUpdatesSubject     = "memphis.updates.%v"
 	memphisGetSchemaSubject         = "memphis.schema.getSchema.%v"
+	memphisErrorSubject             = "memphis.clientsErrors"
 )
 
 type Option func(*Options) error
@@ -80,6 +81,7 @@ type Client struct {
 	JSContext             nats.JetStreamContext
 	ProducerProtoDesc     protoreflect.MessageDescriptor
 	ConsumerProtoDescMap  map[string]protoreflect.MessageDescriptor
+	ErrorsMsgChan         chan string
 }
 
 var ClientConnection *Client
@@ -159,7 +161,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 			func(nc *nats.Conn) {
 				natsConnectionID, err := c.generateNatsConnectionID()
 				if err != nil {
-					memphisKafkaErr("error reconnecting to memphis cost")
+					memphisKafkaErr(err.Error())
 				}
 
 				clientReconnectionUpdateReq := ClientReconnectionUpdateReq{
@@ -169,12 +171,12 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 
 				clientReconnectionUpdateReqBytes, err := json.Marshal(clientReconnectionUpdateReq)
 				if err != nil {
-					memphisKafkaErr("error reconnecting to memphis cost")
+					memphisKafkaErr(err.Error())
 				}
 
 				_, err = nc.Request(clientReconnectionUpdateSubject, clientReconnectionUpdateReqBytes, 5*time.Second)
 				if err != nil {
-					memphisKafkaErr("error reconnecting to memphis cost")
+					memphisKafkaErr(err.Error())
 				}
 
 				c.NatsConnectionID = natsConnectionID
@@ -268,7 +270,7 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 			var update SchemaUpdateReq
 			err := json.Unmarshal(msg.Payload, &update)
 			if err != nil {
-				memphisKafkaErr("error compileing memphis schema")
+				memphisKafkaErr(err.Error())
 			}
 			if desc != nil {
 				ClientConnection.ConsumerProtoDescMap[update.SchemaID] = desc
@@ -283,7 +285,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 		var update Update
 		err := json.Unmarshal(msg.Data, &update)
 		if err != nil {
-			memphisKafkaErr(fmt.Sprintf("error getting updates from memphis"))
+			memphisKafkaErr(err.Error())
 		}
 		c.UpdateCahn <- update
 	}
@@ -292,7 +294,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 func SendLearningMessage(msg []byte) {
 	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisLearningSubject, ClientConnection.ClientID), msg)
 	if err != nil {
-		memphisKafkaErr("error communicating with memphis")
+		memphisKafkaErr(err.Error())
 	}
 }
 
@@ -303,7 +305,7 @@ func SendRegisterSchemaReq() {
 	}
 	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisRegisterSchemaSubject, ClientConnection.ClientID), []byte(""))
 	if err != nil {
-		memphisKafkaErr("error communicating with memphis")
+		memphisKafkaErr(err.Error())
 	} else {
 		ClientConnection.LearningRequestSent = true
 		go func() {
@@ -322,27 +324,27 @@ func compileMsgDescriptor(payload []byte) protoreflect.MessageDescriptor {
 	var schemaUpdate SchemaUpdateReq
 	err := json.Unmarshal(payload, &schemaUpdate)
 	if err != nil {
-		memphisKafkaErr("error compileing memphis schema")
+		memphisKafkaErr(err.Error())
 		return nil
 	}
 
 	descriptorSet := descriptorpb.FileDescriptorSet{}
 	err = proto.Unmarshal(schemaUpdate.Desc, &descriptorSet)
 	if err != nil {
-		memphisKafkaErr("error compileing memphis schema")
+		memphisKafkaErr(err.Error())
 		return nil
 	}
 
 	localRegistry, err := protodesc.NewFiles(&descriptorSet)
 	if err != nil {
-		memphisKafkaErr("error compileing memphis schema")
+		memphisKafkaErr(err.Error())
 		return nil
 	}
 
 	filePath := fmt.Sprintf("%v.proto", "testDescriptor")
 	fileDesc, err := localRegistry.FindFileByPath(filePath)
 	if err != nil {
-		memphisKafkaErr("error compileing memphis schema")
+		memphisKafkaErr(err.Error())
 		return nil
 	}
 
@@ -356,7 +358,7 @@ func SentGetSchemaRequest(schemaID string) {
 	} else {
 		_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisGetSchemaSubject, ClientConnection.ClientID), []byte(schemaID))
 		if err != nil {
-			memphisKafkaErr("error communicating with memphis")
+			memphisKafkaErr(err.Error())
 		}
 		ClientConnection.GetSchemaRequestSent = true
 		go func() {
@@ -379,12 +381,12 @@ func SendClientTypeUpdateReq(clientID int, clientType string) {
 
 	clientTypeUpdateReqBytes, err := json.Marshal(clientTypeUpdateReq)
 	if err != nil {
-		memphisKafkaErr("error communicating with memphis")
+		memphisKafkaErr(err.Error())
 	}
 
 	_, err = ClientConnection.JSContext.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
 	if err != nil {
-		memphisKafkaErr("error communicating with memphis")
+		memphisKafkaErr(err.Error())
 	}
 }
 
@@ -397,4 +399,8 @@ func (c *Client) generateNatsConnectionID() (string, error) {
 	serverName := c.BrokerConnection.ConnectedServerName()
 
 	return fmt.Sprintf("%v:%v", serverName, natsConnectionId), nil
+}
+
+func sendClientErrorsToBE(errMsg string) {
+	ClientConnection.JSContext.Publish(memphisErrorSubject, []byte(errMsg))
 }

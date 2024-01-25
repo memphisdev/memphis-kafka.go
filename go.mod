@@ -1,4 +1,4 @@
-module memphis_kafka
+module github.com/memphisdev/memphis-kafka.go
 
 go 1.20
 
