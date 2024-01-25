@@ -14,6 +14,16 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+const (
+	clientReconnectionUpdateSubject = "memphis.clientReconnectionUpdate"
+	clientTypeUpdateSubject         = "memphis.clientTypeUpdate"
+	clientRegisterSubject           = "memphis.registerClient"
+	memphisLearningSubject          = "memphis.schema.learnSchema.%v"
+	memphisRegisterSchemaSubject    = "memphis.schema.registerSchema.%v"
+	memphisClientUpdatesSubject     = "memphis.updates.%v"
+	memphisGetSchemaSubject         = "memphis.schema.getSchema.%v"
+)
+
 type Option func(*Options) error
 
 type Options struct {
@@ -26,7 +36,13 @@ type RegisterResp struct {
 }
 
 type RegisterReq struct {
-	Language string `json:"language"`
+	NatsClientID string `json:"natsClientId"`
+	Language     string `json:"language"`
+}
+
+type ClientReconnectionUpdateReq struct {
+	NewNatsClientID string `json:"newNatsClientId"`
+	ClientID        int    `json:"clientId"`
 }
 
 type ClientTypeUpdateReq struct {
@@ -53,6 +69,7 @@ type SchemaUpdateReq struct {
 
 type Client struct {
 	ClientID              int
+	NatsClientID          string
 	IsConsumer            bool
 	IsProducer            bool
 	LearningFactor        int
@@ -97,6 +114,10 @@ func Init(token string, options ...Option) error {
 	return nil
 }
 
+func Close() {
+	ClientConnection.BrokerConnection.Close()
+}
+
 func Host(host string) Option {
 	return func(o *Options) error {
 		o.Host = host
@@ -134,6 +155,31 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 				return userNKey.Sign(nonce)
 			},
 		),
+		nats.ReconnectHandler(
+			func(nc *nats.Conn) {
+				natsConnectionID, err := c.generateNatsConnectionID()
+				if err != nil {
+					memphisKafkaErr("error reconnecting to memphis cost")
+				}
+
+				clientReconnectionUpdateReq := ClientReconnectionUpdateReq{
+					NewNatsClientID: natsConnectionID,
+					ClientID:        c.ClientID,
+				}
+
+				clientReconnectionUpdateReqBytes, err := json.Marshal(clientReconnectionUpdateReq)
+				if err != nil {
+					memphisKafkaErr("error reconnecting to memphis cost")
+				}
+
+				_, err = nc.Request(clientReconnectionUpdateSubject, clientReconnectionUpdateReqBytes, 5*time.Second)
+				if err != nil {
+					memphisKafkaErr("error reconnecting to memphis cost")
+				}
+
+				c.NatsClientID = natsConnectionID
+			},
+		),
 	}
 
 	nc, err := nats.Connect(host, opts...)
@@ -149,12 +195,19 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 	c.BrokerConnection = nc
 	c.JSContext = js
 
+	natsConnectionID, err := c.generateNatsConnectionID()
+	if err != nil {
+		return fmt.Errorf("memphis_kafka: error connecting to memphis cost")
+	}
+	c.NatsClientID = natsConnectionID
+
 	return nil
 }
 
 func (c *Client) RegisterClient() error {
 	registerReq := RegisterReq{
-		Language: "go",
+		NatsClientID: c.NatsClientID,
+		Language:     "go",
 	}
 
 	registerReqBytes, err := json.Marshal(registerReq)
@@ -162,7 +215,7 @@ func (c *Client) RegisterClient() error {
 		return fmt.Errorf("memphis_kafka: error registering client")
 	}
 
-	resp, err := c.BrokerConnection.Request("memphis.registerClient", registerReqBytes, 5*time.Second)
+	resp, err := c.BrokerConnection.Request(clientRegisterSubject, registerReqBytes, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("memphis_kafka: error registering client")
 	}
@@ -193,7 +246,7 @@ func (c *Client) SubscribeUpdates() error {
 	go cus.UpdatesHandler()
 
 	var err error
-	cus.Subscription, err = c.BrokerConnection.Subscribe(fmt.Sprintf("memphis.updates.%v", c.ClientID), cus.SubscriptionHandler())
+	cus.Subscription, err = c.BrokerConnection.Subscribe(fmt.Sprintf(memphisClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
 	if err != nil {
 		return fmt.Errorf("memphis_kafka: error connecting to memphis cost")
 	}
@@ -237,7 +290,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 }
 
 func SendLearningMessage(msg []byte) {
-	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf("memphis.schema.learnSchema.%v", ClientConnection.ClientID), msg)
+	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisLearningSubject, ClientConnection.ClientID), msg)
 	if err != nil {
 		memphisKafkaErr("error communicating with memphis")
 	}
@@ -248,7 +301,7 @@ func SendRegisterSchemaReq() {
 	if ClientConnection.LearningRequestSent {
 		return
 	}
-	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf("memphis.schema.registerSchema.%v", ClientConnection.ClientID), []byte(""))
+	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisRegisterSchemaSubject, ClientConnection.ClientID), []byte(""))
 	if err != nil {
 		memphisKafkaErr("error communicating with memphis")
 	} else {
@@ -301,7 +354,7 @@ func SentGetSchemaRequest(schemaID string) {
 	if ClientConnection.GetSchemaRequestSent {
 		return
 	} else {
-		_, err := ClientConnection.JSContext.Publish(fmt.Sprintf("memphis.schema.getSchema.%v", ClientConnection.ClientID), []byte(schemaID))
+		_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisGetSchemaSubject, ClientConnection.ClientID), []byte(schemaID))
 		if err != nil {
 			memphisKafkaErr("error communicating with memphis")
 		}
@@ -329,8 +382,19 @@ func SendClientTypeUpdateReq(clientID int, clientType string) {
 		memphisKafkaErr("error communicating with memphis")
 	}
 
-	_, err = ClientConnection.JSContext.Publish("memphis.clientTypeUpdate", clientTypeUpdateReqBytes)
+	_, err = ClientConnection.JSContext.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
 	if err != nil {
 		memphisKafkaErr("error communicating with memphis")
 	}
+}
+
+func (c *Client) generateNatsConnectionID() (string, error) {
+	natsClientId, err := c.BrokerConnection.GetClientID()
+	if err != nil {
+		return "", err
+	}
+
+	serverName := c.BrokerConnection.ConnectedServerName()
+
+	return fmt.Sprintf("%v:%v", serverName, natsClientId), nil
 }
