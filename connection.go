@@ -22,7 +22,7 @@ const (
 	memphisRegisterSchemaSubject    = "memphis.schema.registerSchema.%v"
 	memphisClientUpdatesSubject     = "memphis.updates.%v"
 	memphisGetSchemaSubject         = "memphis.schema.getSchema.%v"
-	memphisErrorSubject             = "memphis.clientsErrors"
+	memphisErrorSubject             = "memphis.clientErrors"
 )
 
 type Option func(*Options) error
@@ -32,8 +32,9 @@ type Options struct {
 }
 
 type RegisterResp struct {
-	ClientID       int `json:"clientId"`
-	LearningFactor int `json:"learningFactor"`
+	ClientID       int    `json:"clientId"`
+	AccountName    string `json:"accountName"`
+	LearningFactor int    `json:"learningFactor"`
 }
 
 type RegisterReq struct {
@@ -70,6 +71,7 @@ type SchemaUpdateReq struct {
 
 type Client struct {
 	ClientID              int
+	AccountName           string
 	NatsConnectionID      string
 	IsConsumer            bool
 	IsProducer            bool
@@ -229,6 +231,7 @@ func (c *Client) RegisterClient() error {
 	}
 
 	c.ClientID = registerResp.ClientID
+	c.AccountName = registerResp.AccountName
 	c.LearningFactor = registerResp.LearningFactor
 	c.LearningFactorCounter = 0
 	c.LearningRequestSent = false
