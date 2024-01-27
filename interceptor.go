@@ -1,6 +1,8 @@
 package memphis_kafka
 
 import (
+	"fmt"
+
 	"github.com/IBM/sarama"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -9,9 +11,9 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-func Start(config interface{}) {
+func startInterceptors(config interface{}) {
 	if config == nil {
-		memphisKafkaErr("config is nil")
+		handleError("config is nil")
 		return
 	}
 
@@ -19,7 +21,8 @@ func Start(config interface{}) {
 		ConfigSaramaInterceptor(config)
 		return
 	} else {
-		memphisKafkaErr("unsupported sdk")
+		handleError("unsupported sdk")
+		fmt.Println("memphis: unsupported sdk")
 		return
 	}
 }

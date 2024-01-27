@@ -1,6 +1,7 @@
 package memphis_kafka
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -22,11 +23,12 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 	if ClientConnection.ProducerProtoDesc != nil {
 		byte_msg, err := msg.Value.Encode()
 		if err != nil {
-			memphisKafkaErr(err.Error())
+			handleError(err.Error())
 			return
 		}
 		protoMsg, err := jsonToProto(byte_msg)
 		if err != nil {
+			// in case of a schema mismatch, send the message as is
 			return
 		} else {
 			msg.Headers = append(msg.Headers, sarama.RecordHeader{
@@ -39,12 +41,12 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 		if ClientConnection.LearningFactorCounter <= ClientConnection.LearningFactor {
 			byte_msg, err := msg.Value.Encode()
 			if err != nil {
-				memphisKafkaErr(err.Error())
+				handleError(err.Error())
 				return
 			}
 			SendLearningMessage(byte_msg)
 			ClientConnection.LearningFactorCounter++
-		} else if !ClientConnection.LearningRequestSent && ClientConnection.LearningFactorCounter > ClientConnection.LearningFactor {
+		} else if !ClientConnection.LearningRequestSent && ClientConnection.LearningFactorCounter >= ClientConnection.LearningFactor {
 			SendRegisterSchemaReq()
 		}
 	}
@@ -72,13 +74,18 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 			if ok {
 				jsonMsg, err := protoToJson(msg.Value, descriptor)
 				if err != nil {
-					memphisKafkaErr(err.Error())
+					handleError(err.Error())
 					return
 				} else {
 					msg.Headers = append(msg.Headers[:i], msg.Headers[i+1:]...)
 					msg.Value = jsonMsg
 				}
+			} else {
+				handleError("schema not found")
+				fmt.Println("memphis: schema not found")
+				return
 			}
+			break
 		}
 	}
 }
