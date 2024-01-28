@@ -33,7 +33,6 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	memphis_kafka.Start(config)
 
 	producer, err := sarama.NewSyncProducer([]string{broker}, config)
 	if err != nil {

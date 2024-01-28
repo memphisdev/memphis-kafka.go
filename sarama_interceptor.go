@@ -1,8 +1,9 @@
 package memphis_kafka
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
-	"time"
 
 	"github.com/IBM/sarama"
 )
@@ -23,7 +24,7 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 	if ClientConnection.ProducerProtoDesc != nil {
 		byte_msg, err := msg.Value.Encode()
 		if err != nil {
-			handleError(err.Error())
+			handleError(fmt.Sprintf("[sdk: go][version: %v]OnSend at msg.Value.Encode %v", sdkVersion, err.Error()))
 			return
 		}
 		protoMsg, err := jsonToProto(byte_msg)
@@ -31,9 +32,15 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 			// in case of a schema mismatch, send the message as is
 			return
 		} else {
+			buf := new(bytes.Buffer)
+			err = binary.Write(buf, binary.BigEndian, int64(len(protoMsg)))
+			if err != nil {
+				handleError(fmt.Sprintf("[sdk: go][version: %v]OnSend at binary.Write %v", sdkVersion, err.Error()))
+				return
+			}
 			msg.Headers = append(msg.Headers, sarama.RecordHeader{
 				Key:   []byte("memphis_schema"),
-				Value: []byte(ClientConnection.ProducerProtoDesc.FullName()), // change the value ?
+				Value: buf.Bytes(),
 			})
 			msg.Value = sarama.ByteEncoder(protoMsg)
 		}
@@ -41,7 +48,7 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 		if ClientConnection.LearningFactorCounter <= ClientConnection.LearningFactor {
 			byte_msg, err := msg.Value.Encode()
 			if err != nil {
-				handleError(err.Error())
+				handleError(fmt.Sprintf("[sdk: go][version: %v]OnSend at msg.Value.Encode %v", sdkVersion, err.Error()))
 				return
 			}
 			SendLearningMessage(byte_msg)
@@ -59,29 +66,23 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 
 	for i, header := range msg.Headers {
 		if string(header.Key) == "memphis_schema" {
-			_, ok := ClientConnection.ConsumerProtoDescMap[string(header.Value)]
+			_, ok := ClientConnection.ConsumerProtoDescMap[int(binary.BigEndian.Uint64(header.Value))]
 			if !ok {
 				SentGetSchemaRequest(string(header.Value))
-				for {
-					if _, ok := ClientConnection.ConsumerProtoDescMap[string(header.Value)]; ok {
-						break
-					}
-					time.Sleep(10 * time.Millisecond)
-				}
 			}
 
-			descriptor, ok := ClientConnection.ConsumerProtoDescMap[string(header.Value)]
+			descriptor, ok := ClientConnection.ConsumerProtoDescMap[int(binary.BigEndian.Uint64(header.Value))]
 			if ok {
 				jsonMsg, err := protoToJson(msg.Value, descriptor)
 				if err != nil {
-					handleError(err.Error())
+					handleError(fmt.Sprintf("[sdk: go][version: %v]OnConsume at protoToJson %v", sdkVersion, err.Error()))
 					return
 				} else {
 					msg.Headers = append(msg.Headers[:i], msg.Headers[i+1:]...)
 					msg.Value = jsonMsg
 				}
 			} else {
-				handleError("schema not found")
+				handleError(fmt.Sprintf("[sdk: go][version: %v]OnConsume schema not found", sdkVersion))
 				fmt.Println("memphis: schema not found")
 				return
 			}

@@ -13,7 +13,7 @@ import (
 
 func startInterceptors(config interface{}) {
 	if config == nil {
-		handleError("config is nil")
+		handleError(fmt.Sprintf("[sdk: go][version: %v]startInterceptors: config is nil", sdkVersion))
 		return
 	}
 
@@ -21,7 +21,7 @@ func startInterceptors(config interface{}) {
 		ConfigSaramaInterceptor(config)
 		return
 	} else {
-		handleError("unsupported sdk")
+		handleError(fmt.Sprintf("[sdk: go][version: %v]startInterceptors: unsupported sdk", sdkVersion))
 		fmt.Println("memphis: unsupported sdk")
 		return
 	}
