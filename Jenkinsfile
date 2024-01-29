@@ -1,5 +1,3 @@
-def gitBranch = env.BRANCH_NAME                  
-
 pipeline {
 
     agent {
@@ -9,20 +7,21 @@ pipeline {
     stages {
         stage('Install GoLang') {
             steps {
-                // script {
-                //     // Read the version from the cloned file
-                //     if (env.BRANCH_NAME ==~ /(latest)/) { 
-                //         def version = readFile './version.conf'
-                //     }
-                //     else {
-                //         def version = readFile './version-beta.conf'
-                //     }                    
-                //     echo "Read version from file: ${version}"
-                //     // Set the version as an environment variable
-                //     env.versionTag = version.trim()
-                // }  
-                sh 'ls -la'
-                sh 'pwd'               
+                script {
+                    def branchName = env.BRANCH_NAME ?: ''
+                    // Check if the branch is 'latest'
+                    if (branchName == 'latest') {
+                        // Read version from version-beta.conf
+                        def version = readFile('version.conf').trim()
+                        // Set the VERSION environment variable to the version from the file
+                        env.versionTag = version
+                        echo "Using version from version-beta.conf: ${env.VERSION}"
+                    } else {
+                        def version = readFile('version-beta.conf').trim()
+                        env.versionTag = version
+                        echo "Using version from version-beta.conf: ${env.versionTag}"                        
+                    }
+                }            
                 sh 'wget -q https://go.dev/dl/go1.20.12.linux-amd64.tar.gz'
                 sh 'sudo  tar -C /usr/local -xzf go1.20.12.linux-amd64.tar.gz'
             }
