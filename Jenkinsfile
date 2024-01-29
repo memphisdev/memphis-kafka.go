@@ -9,18 +9,20 @@ pipeline {
     stages {
         stage('Install GoLang') {
             steps {
-                script {
-                    // Read the version from the cloned file
-                    if (env.BRANCH_NAME ==~ /(latest)/) { 
-                        def version = readFile './version.conf'
-                    }
-                    else {
-                        def version = readFile './version-beta.conf'
-                    }                    
-                    echo "Read version from file: ${version}"
-                    // Set the version as an environment variable
-                    env.versionTag = version.trim()
-                }                 
+                // script {
+                //     // Read the version from the cloned file
+                //     if (env.BRANCH_NAME ==~ /(latest)/) { 
+                //         def version = readFile './version.conf'
+                //     }
+                //     else {
+                //         def version = readFile './version-beta.conf'
+                //     }                    
+                //     echo "Read version from file: ${version}"
+                //     // Set the version as an environment variable
+                //     env.versionTag = version.trim()
+                // }  
+                sh 'ls -la'
+                sh 'pwd'               
                 sh 'wget -q https://go.dev/dl/go1.20.12.linux-amd64.tar.gz'
                 sh 'sudo  tar -C /usr/local -xzf go1.20.12.linux-amd64.tar.gz'
             }
