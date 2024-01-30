@@ -279,6 +279,10 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 		switch msg.Type {
 		case "LearnedSchema":
 			var update SchemaUpdateResp
+
+			//for testing
+			fmt.Println(string(msg.Payload))
+
 			err := json.Unmarshal(msg.Payload, &update)
 			if err != nil {
 				handleError(fmt.Sprintf("[sdk: go][version: %v]UpdatesHandler LearnedSchema at json.Umarshal %v", sdkVersion, err.Error()))
@@ -313,7 +317,6 @@ func SendLearningMessage(msg []byte) {
 }
 
 func SendRegisterSchemaReq() {
-	//consider using mutexes
 	if ClientConnection.LearningRequestSent {
 		return
 	}
@@ -322,15 +325,6 @@ func SendRegisterSchemaReq() {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]SendRegisterSchemaReq at Publish %v", sdkVersion, err.Error()))
 	} else {
 		ClientConnection.LearningRequestSent = true
-		go func() {
-			ticker := time.NewTicker(100 * time.Millisecond)
-			for {
-				select {
-				case <-ticker.C:
-					ClientConnection.LearningRequestSent = false
-				}
-			}
-		}()
 	}
 }
 
@@ -410,6 +404,12 @@ func SendClientTypeUpdateReq(clientID int, clientType string) {
 	_, err = ClientConnection.JSContext.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
 	if err != nil {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]SendClientTypeUpdateReq at Publish %v", sdkVersion, err.Error()))
+	}
+	switch clientType {
+	case "consumer":
+		ClientConnection.IsConsumer = true
+	case "producer":
+		ClientConnection.IsProducer = true
 	}
 }
 

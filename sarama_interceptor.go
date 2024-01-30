@@ -53,7 +53,7 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 			}
 			SendLearningMessage(byte_msg)
 			ClientConnection.LearningFactorCounter++
-		} else if !ClientConnection.LearningRequestSent && ClientConnection.LearningFactorCounter >= ClientConnection.LearningFactor {
+		} else if !ClientConnection.LearningRequestSent && ClientConnection.LearningFactorCounter >= ClientConnection.LearningFactor && ClientConnection.ProducerProtoDesc == nil {
 			SendRegisterSchemaReq()
 		}
 	}
