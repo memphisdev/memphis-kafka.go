@@ -33,7 +33,7 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 			return
 		} else {
 			buf := new(bytes.Buffer)
-			err = binary.Write(buf, binary.BigEndian, int64(len(protoMsg)))
+			err = binary.Write(buf, binary.BigEndian, int64(ClientConnection.ProducerSchemaID))
 			if err != nil {
 				handleError(fmt.Sprintf("[sdk: go][version: %v]OnSend at binary.Write %v", sdkVersion, err.Error()))
 				return

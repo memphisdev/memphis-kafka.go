@@ -1,15 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	memphis_kafka "github.com/memphisdev/memphis-kafka.go"
 
 	"github.com/IBM/sarama"
 )
-
-var token = "..."
 
 func main() {
 
@@ -19,20 +16,16 @@ func main() {
 	config.Producer.Return.Errors = true
 	config.Producer.Flush.MaxMessages = 10
 	config.Producer.RequiredAcks = sarama.NoResponse
-	//config.Producer.Compression = sarama.CompressionZSTD
 
 	// confluent config
-	config.Net.SASL.Enable = true //check if this is needed
+	config.Net.SASL.Enable = true
 	config.Net.SASL.User = "..."
 	config.Net.SASL.Password = "..."
 	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 	config.Net.TLS.Enable = true
 	config.Net.TLS.Config = nil
 
-	err := memphis_kafka.Init(token, memphis_kafka.Host("..."))
-	if err != nil {
-		fmt.Println(err)
-	}
+	memphis_kafka.Init("token", config, memphis_kafka.Host("..."))
 
 	producer, err := sarama.NewSyncProducer([]string{broker}, config)
 	if err != nil {
