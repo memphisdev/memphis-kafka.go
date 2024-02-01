@@ -138,7 +138,7 @@ func Host(host string) Option {
 
 func GetDefaultOptions() Options {
 	return Options{
-		Host: "broker.cost.memphis.dev",
+		Host: "broker.superstream.dev",
 	}
 }
 
