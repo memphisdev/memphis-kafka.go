@@ -1,3 +1,3 @@
-package memphis_kafka
+package superstream
 
 var sdkVersion = "1.0.0"

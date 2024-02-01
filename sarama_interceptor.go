@@ -1,4 +1,4 @@
-package memphis_kafka
+package superstream
 
 import (
 	"bytes"
