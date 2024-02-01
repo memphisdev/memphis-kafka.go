@@ -105,19 +105,19 @@ func Init(token string, config interface{}, options ...Option) {
 
 	err := ClientConnection.InitializeNatsConnection(token, opts.Host)
 	if err != nil {
-		fmt.Println("superstream: error initializing superstream")
+		fmt.Println(err.Error())
 		return
 	}
 
 	err = ClientConnection.RegisterClient()
 	if err != nil {
-		fmt.Println("superstream: error registering client")
+		fmt.Println(err.Error())
 		return
 	}
 
 	err = ClientConnection.SubscribeUpdates()
 	if err != nil {
-		fmt.Println("superstream: error subscribing to updates")
+		fmt.Println(err.Error())
 		return
 	}
 
@@ -196,7 +196,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 	nc, err := nats.Connect(host, opts...)
 	if err != nil {
 		if strings.Contains(err.Error(), "nats: maximum account") {
-			return fmt.Errorf("superstream: can no connect with superstream since you have reached the maximum amount of connected clients")
+			return fmt.Errorf("superstream: can not connect with superstream since you have reached the maximum amount of connected clients")
 		} else if strings.Contains(err.Error(), "timeout") {
 			return fmt.Errorf("superstream: error connecting to superstream: timeout")
 		} else if strings.Contains(err.Error(), "unauthorized") {
@@ -216,7 +216,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 
 	natsConnectionID, err := c.generateNatsConnectionID()
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting to superstream")
+		return fmt.Errorf("superstream: error connecting to superstream: %v", err)
 	}
 	c.NatsConnectionID = natsConnectionID
 
@@ -269,7 +269,7 @@ func (c *Client) SubscribeUpdates() error {
 	var err error
 	cus.Subscription, err = c.BrokerConnection.Subscribe(fmt.Sprintf(superstreamClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting to superstream")
+		return fmt.Errorf("superstream: error connecting to superstream %v", err)
 	}
 
 	return nil
