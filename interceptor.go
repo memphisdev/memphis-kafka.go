@@ -22,7 +22,7 @@ func startInterceptors(config interface{}) {
 		return
 	} else {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]startInterceptors: unsupported sdk", sdkVersion))
-		fmt.Println("memphis: unsupported sdk")
+		fmt.Println("superstream: unsupported sdk")
 		return
 	}
 }

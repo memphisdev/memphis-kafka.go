@@ -15,14 +15,14 @@ import (
 )
 
 const (
-	clientReconnectionUpdateSubject = "memphis.clientReconnectionUpdate"
-	clientTypeUpdateSubject         = "memphis.clientTypeUpdate"
-	clientRegisterSubject           = "memphis.registerClient"
-	memphisLearningSubject          = "memphis.schema.learnSchema.%v"
-	memphisRegisterSchemaSubject    = "memphis.tasks.schema.registerSchema.%v"
-	memphisClientUpdatesSubject     = "memphis.updates.%v"
-	memphisGetSchemaSubject         = "memphis.schema.getSchema.%v"
-	memphisErrorSubject             = "memphis.clientErrors"
+	clientReconnectionUpdateSubject  = "internal.clientReconnectionUpdate"
+	clientTypeUpdateSubject          = "internal.clientTypeUpdate"
+	clientRegisterSubject            = "internal.registerClient"
+	superstreamLearningSubject       = "internal.schema.learnSchema.%v"
+	superstreamRegisterSchemaSubject = "internal.tasks.schema.registerSchema.%v"
+	superstreamClientUpdatesSubject  = "internal.updates.%v"
+	superstreamGetSchemaSubject      = "internal.schema.getSchema.%v"
+	superstreamErrorSubject          = "internal.clientErrors"
 )
 
 type Option func(*Options) error
@@ -65,9 +65,9 @@ type Update struct {
 }
 
 type SchemaUpdateReq struct {
-	MsgName  string
-	SchemaID int
-	Desc     []byte
+	MasterMsgName string
+	SchemaID      int
+	Desc          []byte
 }
 
 type Client struct {
@@ -95,7 +95,7 @@ func Init(token string, config interface{}, options ...Option) {
 	for _, opt := range options {
 		if opt != nil {
 			if err := opt(&opts); err != nil {
-				fmt.Println("memphis: error initializing memphis: Wrong option")
+				fmt.Println("superstream: error initializing superstream: Wrong option")
 				return
 			}
 		}
@@ -105,19 +105,19 @@ func Init(token string, config interface{}, options ...Option) {
 
 	err := ClientConnection.InitializeNatsConnection(token, opts.Host)
 	if err != nil {
-		fmt.Println("memphis: error initializing memphis")
+		fmt.Println("superstream: error initializing superstream")
 		return
 	}
 
 	err = ClientConnection.RegisterClient()
 	if err != nil {
-		fmt.Println("memphis: error registering client")
+		fmt.Println("superstream: error registering client")
 		return
 	}
 
 	err = ClientConnection.SubscribeUpdates()
 	if err != nil {
-		fmt.Println("memphis: error subscribing to updates")
+		fmt.Println("superstream: error subscribing to updates")
 		return
 	}
 
@@ -146,7 +146,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 
 	splitedToken := strings.Split(token, ":::")
 	if len(splitedToken) != 2 {
-		return fmt.Errorf("memphis: token is not valid")
+		return fmt.Errorf("superstream: token is not valid")
 	}
 
 	JWT := splitedToken[0]
@@ -196,19 +196,19 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 	nc, err := nats.Connect(host, opts...)
 	if err != nil {
 		if strings.Contains(err.Error(), "nats: maximum account") {
-			return fmt.Errorf("memphis: can no connect with memphis since you have reached the maximum amount of connected clients")
+			return fmt.Errorf("superstream: can no connect with superstream since you have reached the maximum amount of connected clients")
 		} else if strings.Contains(err.Error(), "timeout") {
-			return fmt.Errorf("memphis: error connecting to memphis: timeout")
+			return fmt.Errorf("superstream: error connecting to superstream: timeout")
 		} else if strings.Contains(err.Error(), "unauthorized") {
-			return fmt.Errorf("memphis: error connecting to memphis: unauthorized")
+			return fmt.Errorf("superstream: error connecting to superstream: unauthorized")
 		} else {
-			return fmt.Errorf("memphis: error connecting to memphis: %v", err)
+			return fmt.Errorf("superstream: error connecting to superstream: %v", err)
 		}
 	}
 
 	js, err := nc.JetStream()
 	if err != nil {
-		return fmt.Errorf("memphis: error connecting to memphis: %v", err)
+		return fmt.Errorf("superstream: error connecting to superstream: %v", err)
 	}
 
 	c.BrokerConnection = nc
@@ -216,7 +216,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 
 	natsConnectionID, err := c.generateNatsConnectionID()
 	if err != nil {
-		return fmt.Errorf("memphis: error connecting to memphis")
+		return fmt.Errorf("superstream: error connecting to superstream")
 	}
 	c.NatsConnectionID = natsConnectionID
 
@@ -232,18 +232,18 @@ func (c *Client) RegisterClient() error {
 
 	registerReqBytes, err := json.Marshal(registerReq)
 	if err != nil {
-		return fmt.Errorf("memphis: error registering client: %v", err)
+		return fmt.Errorf("superstream: error registering client: %v", err)
 	}
 
 	resp, err := c.BrokerConnection.Request(clientRegisterSubject, registerReqBytes, 30*time.Second)
 	if err != nil {
-		return fmt.Errorf("memphis: error registering client: %v", err)
+		return fmt.Errorf("superstream: error registering client: %v", err)
 	}
 
 	var registerResp RegisterResp
 	err = json.Unmarshal(resp.Data, &registerResp)
 	if err != nil {
-		return fmt.Errorf("memphis: error registering client: %v", err)
+		return fmt.Errorf("superstream: error registering client: %v", err)
 	}
 
 	c.ClientID = registerResp.ClientID
@@ -267,9 +267,9 @@ func (c *Client) SubscribeUpdates() error {
 	go cus.UpdatesHandler()
 
 	var err error
-	cus.Subscription, err = c.BrokerConnection.Subscribe(fmt.Sprintf(memphisClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
+	cus.Subscription, err = c.BrokerConnection.Subscribe(fmt.Sprintf(superstreamClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
 	if err != nil {
-		return fmt.Errorf("memphis: error connecting to memphis")
+		return fmt.Errorf("superstream: error connecting to superstream")
 	}
 
 	return nil
@@ -285,7 +285,7 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 			if err != nil {
 				handleError(fmt.Sprintf("[sdk: go][version: %v]UpdatesHandler at json.Unmarshal: %v", sdkVersion, err.Error()))
 			}
-			desc := compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MsgName)
+			desc := compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MasterMsgName)
 			if desc != nil {
 				ClientConnection.ProducerProtoDesc = desc
 				ClientConnection.ProducerSchemaID = schemaUpdateReq.SchemaID
@@ -308,7 +308,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 }
 
 func SendLearningMessage(msg []byte) {
-	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisLearningSubject, ClientConnection.ClientID), msg)
+	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(superstreamLearningSubject, ClientConnection.ClientID), msg)
 	if err != nil {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]SendLearningMessage at Publish %v", sdkVersion, err.Error()))
 	}
@@ -318,7 +318,7 @@ func SendRegisterSchemaReq() {
 	if ClientConnection.LearningRequestSent {
 		return
 	}
-	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(memphisRegisterSchemaSubject, ClientConnection.ClientID), []byte(""))
+	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(superstreamRegisterSchemaSubject, ClientConnection.ClientID), []byte(""))
 	if err != nil {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]SendRegisterSchemaReq at Publish %v", sdkVersion, err.Error()))
 	} else {
@@ -326,7 +326,7 @@ func SendRegisterSchemaReq() {
 	}
 }
 
-func compileMsgDescriptor(desc []byte, MsgName string) protoreflect.MessageDescriptor {
+func compileMsgDescriptor(desc []byte, MasterMsgName string) protoreflect.MessageDescriptor {
 	descriptorSet := descriptorpb.FileDescriptorSet{}
 	err := proto.Unmarshal(desc, &descriptorSet)
 	if err != nil {
@@ -348,7 +348,7 @@ func compileMsgDescriptor(desc []byte, MsgName string) protoreflect.MessageDescr
 	}
 
 	msgsDesc := fileDesc.Messages()
-	return msgsDesc.ByName(protoreflect.Name(MsgName))
+	return msgsDesc.ByName(protoreflect.Name(MasterMsgName))
 }
 
 func SentGetSchemaRequest(schemaID string) error {
@@ -356,7 +356,7 @@ func SentGetSchemaRequest(schemaID string) error {
 		return nil
 	} else {
 		ClientConnection.GetSchemaRequestSent = true
-		msg, err := ClientConnection.BrokerConnection.Request(fmt.Sprintf(memphisGetSchemaSubject, ClientConnection.ClientID), []byte(schemaID), 30*time.Second)
+		msg, err := ClientConnection.BrokerConnection.Request(fmt.Sprintf(superstreamGetSchemaSubject, ClientConnection.ClientID), []byte(schemaID), 30*time.Second)
 		if err != nil {
 			handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at Request %v", sdkVersion, err.Error()))
 			ClientConnection.GetSchemaRequestSent = false
@@ -369,13 +369,13 @@ func SentGetSchemaRequest(schemaID string) error {
 			ClientConnection.GetSchemaRequestSent = false
 			return err
 		}
-		desc := compileMsgDescriptor(resp.Desc, resp.MsgName)
+		desc := compileMsgDescriptor(resp.Desc, resp.MasterMsgName)
 		if desc != nil {
 			ClientConnection.ConsumerProtoDescMap[resp.SchemaID] = desc
 		} else {
 			handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor: error compiling schema", sdkVersion))
 			ClientConnection.GetSchemaRequestSent = false
-			return fmt.Errorf("memphis: error compiling schema")
+			return fmt.Errorf("superstream: error compiling schema")
 		}
 		return nil
 	}
@@ -416,5 +416,5 @@ func (c *Client) generateNatsConnectionID() (string, error) {
 }
 
 func sendClientErrorsToBE(errMsg string) {
-	ClientConnection.BrokerConnection.Publish(memphisErrorSubject, []byte(errMsg))
+	ClientConnection.BrokerConnection.Publish(superstreamErrorSubject, []byte(errMsg))
 }

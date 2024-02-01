@@ -39,7 +39,7 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 				return
 			}
 			msg.Headers = append(msg.Headers, sarama.RecordHeader{
-				Key:   []byte("memphis_schema"),
+				Key:   []byte("superstream_schema"),
 				Value: buf.Bytes(),
 			})
 			msg.Value = sarama.ByteEncoder(protoMsg)
@@ -65,7 +65,7 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 	}
 
 	for i, header := range msg.Headers {
-		if string(header.Key) == "memphis_schema" {
+		if string(header.Key) == "superstream_schema" {
 			_, ok := ClientConnection.ConsumerProtoDescMap[int(binary.BigEndian.Uint64(header.Value))]
 			if !ok {
 				SentGetSchemaRequest(string(header.Value))
@@ -83,7 +83,7 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 				}
 			} else {
 				handleError(fmt.Sprintf("[sdk: go][version: %v]OnConsume schema not found", sdkVersion))
-				fmt.Println("memphis: schema not found")
+				fmt.Println("superstream: schema not found")
 				return
 			}
 			break
