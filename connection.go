@@ -28,7 +28,8 @@ const (
 type Option func(*Options) error
 
 type Options struct {
-	Host string
+	Host           string
+	LearningFactor int
 }
 
 type RegisterResp struct {
@@ -41,6 +42,7 @@ type RegisterReq struct {
 	NatsConnectionID string `json:"natsConnectiontId"`
 	Language         string `json:"language"`
 	Version          string `json:"version"`
+	LearningFactor   int    `json:"learning_factor"`
 }
 
 type ClientReconnectionUpdateReq struct {
@@ -109,6 +111,7 @@ func Init(token string, config interface{}, options ...Option) {
 		return
 	}
 
+	ClientConnection.LearningFactor = opts.LearningFactor
 	err = ClientConnection.RegisterClient()
 	if err != nil {
 		fmt.Println(err.Error())
@@ -132,6 +135,13 @@ func Close() {
 func Host(host string) Option {
 	return func(o *Options) error {
 		o.Host = host
+		return nil
+	}
+}
+
+func LearningFactor(learningFactor int) Option {
+	return func(o *Options) error {
+		o.LearningFactor = learningFactor
 		return nil
 	}
 }
@@ -230,6 +240,7 @@ func (c *Client) RegisterClient() error {
 		NatsConnectionID: c.NatsConnectionID,
 		Language:         "go",
 		Version:          sdkVersion,
+		LearningFactor:   c.LearningFactor,
 	}
 
 	registerReqBytes, err := json.Marshal(registerReq)
