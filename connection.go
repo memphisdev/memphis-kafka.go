@@ -28,7 +28,8 @@ const (
 type Option func(*Options) error
 
 type Options struct {
-	Host string
+	Host           string
+	LearningFactor int
 }
 
 type RegisterResp struct {
@@ -41,6 +42,7 @@ type RegisterReq struct {
 	NatsConnectionID string `json:"natsConnectiontId"`
 	Language         string `json:"language"`
 	Version          string `json:"version"`
+	LearningFactor   int    `json:"learning_factor"`
 }
 
 type ClientReconnectionUpdateReq struct {
@@ -100,7 +102,7 @@ func Init(token string, config interface{}, options ...Option) {
 	for _, opt := range options {
 		if opt != nil {
 			if err := opt(&opts); err != nil {
-				fmt.Println("superstream: error initializing superstream: Wrong option")
+				fmt.Printf("superstream: error initializing superstream: Wrong option: %s", err.Error())
 				return
 			}
 		}
@@ -114,6 +116,7 @@ func Init(token string, config interface{}, options ...Option) {
 		return
 	}
 
+	ClientConnection.LearningFactor = opts.LearningFactor
 	err = ClientConnection.RegisterClient()
 	if err != nil {
 		fmt.Println(err.Error())
@@ -138,6 +141,17 @@ func Host(host string) Option {
 	return func(o *Options) error {
 		o.Host = host
 		return nil
+	}
+}
+
+func LearningFactor(learningFactor int) Option {
+	return func(o *Options) error {
+		if learningFactor >= 0 && learningFactor <= 10000 {
+			o.LearningFactor = learningFactor
+			return nil
+		} else {
+			return fmt.Errorf("learning factor should be in range of 0 to 10000")
+		}
 	}
 }
 
@@ -235,6 +249,7 @@ func (c *Client) RegisterClient() error {
 		NatsConnectionID: c.NatsConnectionID,
 		Language:         "go",
 		Version:          sdkVersion,
+		LearningFactor:   c.LearningFactor,
 	}
 
 	registerReqBytes, err := json.Marshal(registerReq)
