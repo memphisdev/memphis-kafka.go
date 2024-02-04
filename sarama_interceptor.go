@@ -1,9 +1,8 @@
 package superstream
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
+	"time"
 
 	"github.com/IBM/sarama"
 )
@@ -32,15 +31,13 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 			// in case of a schema mismatch, send the message as is
 			return
 		} else {
-			buf := new(bytes.Buffer)
-			err = binary.Write(buf, binary.BigEndian, int64(ClientConnection.ProducerSchemaID))
 			if err != nil {
 				handleError(fmt.Sprintf("[sdk: go][version: %v]OnSend at binary.Write %v", sdkVersion, err.Error()))
 				return
 			}
 			msg.Headers = append(msg.Headers, sarama.RecordHeader{
 				Key:   []byte("superstream_schema"),
-				Value: buf.Bytes(),
+				Value: []byte(ClientConnection.ProducerSchemaID),
 			})
 			msg.Value = sarama.ByteEncoder(protoMsg)
 		}
@@ -66,12 +63,20 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 
 	for i, header := range msg.Headers {
 		if string(header.Key) == "superstream_schema" {
-			_, ok := ClientConnection.ConsumerProtoDescMap[int(binary.BigEndian.Uint64(header.Value))]
+			schemaID := string(header.Value)
+			_, ok := ClientConnection.ConsumerProtoDescMap[schemaID]
 			if !ok {
-				SentGetSchemaRequest(string(header.Value))
+				if !ClientConnection.GetSchemaRequestSent {
+					SentGetSchemaRequest(schemaID)
+				}
+
+				for !ok {
+					time.Sleep(500 * time.Millisecond)
+					_, ok = ClientConnection.ConsumerProtoDescMap[schemaID]
+				}
 			}
 
-			descriptor, ok := ClientConnection.ConsumerProtoDescMap[int(binary.BigEndian.Uint64(header.Value))]
+			descriptor, ok := ClientConnection.ConsumerProtoDescMap[schemaID]
 			if ok {
 				jsonMsg, err := protoToJson(msg.Value, descriptor)
 				if err != nil {

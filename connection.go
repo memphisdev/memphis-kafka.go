@@ -19,7 +19,7 @@ const (
 	clientTypeUpdateSubject          = "internal.clientTypeUpdate"
 	clientRegisterSubject            = "internal.registerClient"
 	superstreamLearningSubject       = "internal.schema.learnSchema.%v"
-	superstreamRegisterSchemaSubject = "internal.tasks.schema.registerSchema.%v"
+	superstreamRegisterSchemaSubject = "internal_tasks.schema.registerSchema.%v"
 	superstreamClientUpdatesSubject  = "internal.updates.%v"
 	superstreamGetSchemaSubject      = "internal.schema.getSchema.%v"
 	superstreamErrorSubject          = "internal.clientErrors"
@@ -66,8 +66,13 @@ type Update struct {
 
 type SchemaUpdateReq struct {
 	MasterMsgName string
-	SchemaID      int
+	FileName      string
+	SchemaID      string
 	Desc          []byte
+}
+
+type GetSchemaReq struct {
+	SchemaID string `json:"schemaId"`
 }
 
 type Client struct {
@@ -83,8 +88,8 @@ type Client struct {
 	BrokerConnection      *nats.Conn
 	JSContext             nats.JetStreamContext
 	ProducerProtoDesc     protoreflect.MessageDescriptor
-	ProducerSchemaID      int
-	ConsumerProtoDescMap  map[int]protoreflect.MessageDescriptor
+	ProducerSchemaID      string
+	ConsumerProtoDescMap  map[string]protoreflect.MessageDescriptor
 	ErrorsMsgChan         chan string
 }
 
@@ -251,7 +256,8 @@ func (c *Client) RegisterClient() error {
 	c.LearningFactor = registerResp.LearningFactor
 	c.LearningFactorCounter = 0
 	c.LearningRequestSent = false
-	c.ConsumerProtoDescMap = make(map[int]protoreflect.MessageDescriptor)
+	c.GetSchemaRequestSent = false
+	c.ConsumerProtoDescMap = make(map[string]protoreflect.MessageDescriptor)
 	c.IsConsumer = false
 	c.IsProducer = false
 
@@ -285,7 +291,7 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 			if err != nil {
 				handleError(fmt.Sprintf("[sdk: go][version: %v]UpdatesHandler at json.Unmarshal: %v", sdkVersion, err.Error()))
 			}
-			desc := compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MasterMsgName)
+			desc := compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MasterMsgName, schemaUpdateReq.FileName)
 			if desc != nil {
 				ClientConnection.ProducerProtoDesc = desc
 				ClientConnection.ProducerSchemaID = schemaUpdateReq.SchemaID
@@ -326,7 +332,7 @@ func SendRegisterSchemaReq() {
 	}
 }
 
-func compileMsgDescriptor(desc []byte, MasterMsgName string) protoreflect.MessageDescriptor {
+func compileMsgDescriptor(desc []byte, MasterMsgName, fileName string) protoreflect.MessageDescriptor {
 	descriptorSet := descriptorpb.FileDescriptorSet{}
 	err := proto.Unmarshal(desc, &descriptorSet)
 	if err != nil {
@@ -340,8 +346,7 @@ func compileMsgDescriptor(desc []byte, MasterMsgName string) protoreflect.Messag
 		return nil
 	}
 
-	filePath := fmt.Sprintf("%v.proto", "testDescriptor")
-	fileDesc, err := localRegistry.FindFileByPath(filePath)
+	fileDesc, err := localRegistry.FindFileByPath(fileName)
 	if err != nil {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at FindFileByPath %v", sdkVersion, err.Error()))
 		return nil
@@ -352,36 +357,50 @@ func compileMsgDescriptor(desc []byte, MasterMsgName string) protoreflect.Messag
 }
 
 func SentGetSchemaRequest(schemaID string) error {
-	if ClientConnection.GetSchemaRequestSent {
-		return nil
-	} else {
-		ClientConnection.GetSchemaRequestSent = true
-		msg, err := ClientConnection.BrokerConnection.Request(fmt.Sprintf(superstreamGetSchemaSubject, ClientConnection.ClientID), []byte(schemaID), 30*time.Second)
-		if err != nil {
-			handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at Request %v", sdkVersion, err.Error()))
-			ClientConnection.GetSchemaRequestSent = false
-			return err
-		}
-		var resp SchemaUpdateReq
-		err = json.Unmarshal(msg.Data, &resp)
-		if err != nil {
-			handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at json.Unmarshal %v", sdkVersion, err.Error()))
-			ClientConnection.GetSchemaRequestSent = false
-			return err
-		}
-		desc := compileMsgDescriptor(resp.Desc, resp.MasterMsgName)
-		if desc != nil {
-			ClientConnection.ConsumerProtoDescMap[resp.SchemaID] = desc
-		} else {
-			handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor: error compiling schema", sdkVersion))
-			ClientConnection.GetSchemaRequestSent = false
-			return fmt.Errorf("superstream: error compiling schema")
-		}
-		return nil
+	ClientConnection.GetSchemaRequestSent = true
+	req := GetSchemaReq{
+		SchemaID: schemaID,
 	}
+
+	reqBytes, err := json.Marshal(req)
+	if err != nil {
+		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at json.Marshal %v", sdkVersion, err.Error()))
+		ClientConnection.GetSchemaRequestSent = false
+		return err
+	}
+
+	msg, err := ClientConnection.BrokerConnection.Request(fmt.Sprintf(superstreamGetSchemaSubject, ClientConnection.ClientID), reqBytes, 30*time.Second)
+	if err != nil {
+		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at Request %v", sdkVersion, err.Error()))
+		ClientConnection.GetSchemaRequestSent = false
+		return err
+	}
+	var resp SchemaUpdateReq
+	err = json.Unmarshal(msg.Data, &resp)
+	if err != nil {
+		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at json.Unmarshal %v", sdkVersion, err.Error()))
+		ClientConnection.GetSchemaRequestSent = false
+		return err
+	}
+	desc := compileMsgDescriptor(resp.Desc, resp.MasterMsgName, resp.FileName)
+	if desc != nil {
+		ClientConnection.ConsumerProtoDescMap[resp.SchemaID] = desc
+	} else {
+		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor: error compiling schema", sdkVersion))
+		ClientConnection.GetSchemaRequestSent = false
+		return fmt.Errorf("superstream: error compiling schema")
+	}
+	return nil
 }
 
 func SendClientTypeUpdateReq(clientID int, clientType string) {
+	switch clientType {
+	case "consumer":
+		ClientConnection.IsConsumer = true
+	case "producer":
+		ClientConnection.IsProducer = true
+	}
+
 	clientTypeUpdateReq := ClientTypeUpdateReq{
 		ClientID: clientID,
 		Type:     clientType,
@@ -392,15 +411,9 @@ func SendClientTypeUpdateReq(clientID int, clientType string) {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]SendClientTypeUpdateReq at json.Marshal %v", sdkVersion, err.Error()))
 	}
 
-	_, err = ClientConnection.JSContext.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
+	err = ClientConnection.BrokerConnection.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
 	if err != nil {
 		handleError(fmt.Sprintf("[sdk: go][version: %v]SendClientTypeUpdateReq at Publish %v", sdkVersion, err.Error()))
-	}
-	switch clientType {
-	case "consumer":
-		ClientConnection.IsConsumer = true
-	case "producer":
-		ClientConnection.IsProducer = true
 	}
 }
 
