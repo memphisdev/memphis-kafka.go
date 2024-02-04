@@ -19,7 +19,7 @@ const (
 	clientTypeUpdateSubject          = "internal.clientTypeUpdate"
 	clientRegisterSubject            = "internal.registerClient"
 	superstreamLearningSubject       = "internal.schema.learnSchema.%v"
-	superstreamRegisterSchemaSubject = "internal.tasks.schema.registerSchema.%v"
+	superstreamRegisterSchemaSubject = "internal_tasks.schema.registerSchema.%v"
 	superstreamClientUpdatesSubject  = "internal.updates.%v"
 	superstreamGetSchemaSubject      = "internal.schema.getSchema.%v"
 	superstreamErrorSubject          = "internal.clientErrors"
@@ -153,6 +153,8 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 	Nkey := splitedToken[1]
 
 	opts := []nats.Option{
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(1 * time.Second),
 		nats.UserJWT(
 			func() (string, error) { // Callback to return the user JWT
 				return JWT, nil
