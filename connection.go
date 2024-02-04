@@ -97,7 +97,7 @@ func Init(token string, config interface{}, options ...Option) {
 	for _, opt := range options {
 		if opt != nil {
 			if err := opt(&opts); err != nil {
-				fmt.Println("superstream: error initializing superstream: Wrong option")
+				fmt.Printf("superstream: error initializing superstream: Wrong option: %s", err.Error())
 				return
 			}
 		}
@@ -141,8 +141,12 @@ func Host(host string) Option {
 
 func LearningFactor(learningFactor int) Option {
 	return func(o *Options) error {
-		o.LearningFactor = learningFactor
-		return nil
+		if learningFactor >= 0 && learningFactor <= 10000 {
+			o.LearningFactor = learningFactor
+			return nil
+		} else {
+			return fmt.Errorf("learning factor should be in range of 0 to 10000")
+		}
 	}
 }
 
