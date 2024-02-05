@@ -23,6 +23,7 @@ const (
 	superstreamClientUpdatesSubject  = "internal.updates.%v"
 	superstreamGetSchemaSubject      = "internal.schema.getSchema.%v"
 	superstreamErrorSubject          = "internal.clientErrors"
+	superstreamCountersSubject       = "internal_tasks.countersUpdate.%v"
 )
 
 type Option func(*Options) error
@@ -90,7 +91,18 @@ type Client struct {
 	ProducerProtoDesc     protoreflect.MessageDescriptor
 	ProducerSchemaID      string
 	ConsumerProtoDescMap  map[string]protoreflect.MessageDescriptor
-	ErrorsMsgChan         chan string
+	Counters              ClientCounters
+}
+
+type ClientCounters struct {
+	TotalBytesBeforeProduce           int64
+	TotalBytesAfterProduce            int64
+	TotalBytesBeforeConsume           int64
+	TotalBytesAfterConsume            int64
+	TotalMessagesSuccessfullyProduce  int
+	TotalMessagesSuccessfullyConsumed int
+	TotalMessagesFailedProduce        int
+	TotalMessagesFailedConsume        int
 }
 
 var ClientConnection *Client
@@ -125,6 +137,8 @@ func Init(token string, config interface{}, options ...Option) {
 		fmt.Println(err.Error())
 		return
 	}
+
+	go reportCounters()
 
 	startInterceptors(config)
 	return
@@ -262,6 +276,16 @@ func (c *Client) RegisterClient() error {
 	c.ConsumerProtoDescMap = make(map[string]protoreflect.MessageDescriptor)
 	c.IsConsumer = false
 	c.IsProducer = false
+	c.Counters = ClientCounters{
+		TotalBytesBeforeProduce:           0,
+		TotalBytesAfterProduce:            0,
+		TotalBytesBeforeConsume:           0,
+		TotalBytesAfterConsume:            0,
+		TotalMessagesSuccessfullyProduce:  0,
+		TotalMessagesSuccessfullyConsumed: 0,
+		TotalMessagesFailedProduce:        0,
+		TotalMessagesFailedConsume:        0,
+	}
 
 	return nil
 }
@@ -432,4 +456,22 @@ func (c *Client) generateNatsConnectionID() (string, error) {
 
 func sendClientErrorsToBE(errMsg string) {
 	ClientConnection.BrokerConnection.Publish(superstreamErrorSubject, []byte(errMsg))
+}
+
+func reportCounters() {
+	ticker := time.NewTicker(5 * time.Minute) //change to
+	for {
+		select {
+		case <-ticker.C:
+			byteCounters, err := json.Marshal(ClientConnection.Counters)
+			if err != nil {
+				handleError(fmt.Sprintf("[sdk: go][version: %v]reportCounters at json.Marshal %v", sdkVersion, err.Error()))
+			}
+
+			err = ClientConnection.BrokerConnection.Publish(fmt.Sprintf(superstreamCountersSubject, ClientConnection.ClientID), byteCounters)
+			if err != nil {
+				handleError(fmt.Sprintf("[sdk: go][version: %v]reportCounters at Publish %v", sdkVersion, err.Error()))
+			}
+		}
+	}
 }
