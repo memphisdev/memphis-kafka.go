@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -44,6 +46,7 @@ type RegisterReq struct {
 	Language         string `json:"language"`
 	Version          string `json:"version"`
 	LearningFactor   int    `json:"learning_factor"`
+	Config           Config `json:"config"`
 }
 
 type ClientReconnectionUpdateReq struct {
@@ -78,6 +81,35 @@ type GetSchemaReq struct {
 	SchemaID string `json:"schemaId"`
 }
 
+type Config struct {
+	ClientType                                string        `json:"client_type"`
+	ProducerMaxMessageBytes                   int           `json:"producer_max_messages_bytes"`
+	ProducerRequiredAcks                      string        `json:"producer_required_acks"`
+	ProducerTimeout                           time.Duration `json:"producer_timeout"`
+	ProducerRetryMax                          int           `json:"producer_retry_max"`
+	ProducerRetryBackoff                      time.Duration `json:"producer_retry_backoff"`
+	ProducerReturnErrors                      bool          `json:"producer_return_errors"`
+	ProducerReturnSuccesses                   bool          `json:"producer_return_successes"`
+	ProducerFlushMaxMessages                  int           `json:"producer_flush_max_messages"`
+	ProducerCompressionLevel                  string        `json:"producer_compression_level"`
+	ConsumerFetchMin                          int32         `json:"consumer_fetch_min"`
+	ConsumerFetchDefault                      int32         `json:"consumer_fetch_default"`
+	ConsumerRetryBackOff                      time.Duration `json:"consumer_retry_backoff"`
+	ConsumerMaxWaitTime                       time.Duration `json:"consumer_max_wait_time"`
+	ConsumerMaxProcessingTime                 time.Duration `json:"consumer_mex_processing_time"`
+	ConsumerReturnErrors                      bool          `json:"consumer_return_errors"`
+	ConsumerOffsetAutoCommitEnable            bool          `json:"consumer_offset_auto_commit_enable"`
+	ConsumerOffsetAutoCommintInterval         time.Duration `json:"consumer_offset_auto_commit_interval"`
+	ConsumerOffsetsInitial                    int           `json:"consumer_offsets_initial"`
+	ConsumerOffsetsRetryMax                   int           `json:"consumer_offsets_retry_max"`
+	ConsumerGroupSessionTimeout               time.Duration `json:"consumer_group_session_timeout"`
+	ConsumerGroupHeartBeatInterval            time.Duration `json:"consumer_group_heart_beat_interval"`
+	ConsumerGroupRebalanceTimeout             time.Duration `json:"consumer_group_rebalance_timeout"`
+	ConsumerGroupRebalanceRetryMax            int           `json:"consumer_group_rebalance_retry_max"`
+	ConsumerGroupRebalanceRetryBackOff        time.Duration `json:"consumer_group_rebalance_retry_back_off"`
+	ConsumerGroupRebalanceResetInvalidOffsets bool          `json:"consumer_group_rebalance_reset_invalid_offsets"`
+}
+
 type Client struct {
 	ClientID              int
 	AccountName           string
@@ -94,6 +126,7 @@ type Client struct {
 	ProducerSchemaID      string
 	ConsumerProtoDescMap  map[string]protoreflect.MessageDescriptor
 	Counters              ClientCounters
+	Config                Config
 }
 
 type ClientCounters struct {
@@ -109,6 +142,70 @@ type ClientCounters struct {
 
 var ClientConnection *Client
 
+func ConfigHandler(clientType string, config *sarama.Config) Config {
+	producerConfig := config.Producer
+	consumerConfig := config.Consumer
+
+	var requiredAcks string
+
+	switch config.Producer.RequiredAcks {
+	case 0:
+		requiredAcks = "NoResponse"
+	case 1:
+		requiredAcks = "WaitForLocal"
+	case -1:
+		requiredAcks = "WaitForAll"
+	}
+
+	var compressionLevel string
+	switch config.Producer.CompressionLevel {
+	case 0:
+		compressionLevel = "CompressionNone"
+	case 1:
+		compressionLevel = "CompressionGZIP"
+	case 2:
+		compressionLevel = "CompressionSnappy"
+	case 3:
+		compressionLevel = "CompressionZSTD"
+	case 0x08:
+		compressionLevel = "compressionCodecMask"
+	case 5:
+		compressionLevel = "timestampTypeMask"
+	case -1000:
+		compressionLevel = "CompressionLevelDefault"
+	}
+	conf := Config{
+		ClientType:                                clientType,
+		ProducerMaxMessageBytes:                   producerConfig.MaxMessageBytes,
+		ProducerRequiredAcks:                      requiredAcks,
+		ProducerTimeout:                           producerConfig.Timeout,
+		ProducerRetryMax:                          producerConfig.Retry.Max,
+		ProducerRetryBackoff:                      producerConfig.Retry.Backoff,
+		ProducerReturnErrors:                      producerConfig.Return.Errors,
+		ProducerReturnSuccesses:                   producerConfig.Return.Successes,
+		ProducerFlushMaxMessages:                  producerConfig.Flush.MaxMessages,
+		ProducerCompressionLevel:                  compressionLevel,
+		ConsumerFetchMin:                          consumerConfig.Fetch.Min,
+		ConsumerFetchDefault:                      consumerConfig.Fetch.Default,
+		ConsumerRetryBackOff:                      consumerConfig.Retry.Backoff,
+		ConsumerMaxWaitTime:                       consumerConfig.MaxWaitTime,
+		ConsumerMaxProcessingTime:                 consumerConfig.MaxProcessingTime,
+		ConsumerReturnErrors:                      consumerConfig.Return.Errors,
+		ConsumerOffsetAutoCommitEnable:            consumerConfig.Offsets.AutoCommit.Enable,
+		ConsumerOffsetAutoCommintInterval:         consumerConfig.Offsets.AutoCommit.Interval,
+		ConsumerOffsetsInitial:                    int(consumerConfig.Offsets.Initial),
+		ConsumerOffsetsRetryMax:                   consumerConfig.Offsets.Retry.Max,
+		ConsumerGroupSessionTimeout:               consumerConfig.Group.Session.Timeout,
+		ConsumerGroupHeartBeatInterval:            consumerConfig.Group.Heartbeat.Interval,
+		ConsumerGroupRebalanceTimeout:             consumerConfig.Group.Rebalance.Timeout,
+		ConsumerGroupRebalanceRetryMax:            consumerConfig.Group.Rebalance.Retry.Max,
+		ConsumerGroupRebalanceRetryBackOff:        consumerConfig.Group.Rebalance.Retry.Backoff,
+		ConsumerGroupRebalanceResetInvalidOffsets: consumerConfig.Group.ResetInvalidOffsets,
+	}
+
+	return conf
+}
+
 func Init(token string, config interface{}, options ...Option) {
 	opts := GetDefaultOptions()
 	for _, opt := range options {
@@ -120,7 +217,13 @@ func Init(token string, config interface{}, options ...Option) {
 		}
 	}
 
-	ClientConnection = &Client{}
+	var clientType string
+	if _, ok := config.(*sarama.Config); ok {
+		clientType = "kafka"
+	}
+
+	conf := ConfigHandler(clientType, config.(*sarama.Config))
+	ClientConnection = &Client{Config: conf}
 
 	err := ClientConnection.InitializeNatsConnection(token, opts.Host)
 	if err != nil {
@@ -264,6 +367,7 @@ func (c *Client) RegisterClient() error {
 		Language:         "go",
 		Version:          sdkVersion,
 		LearningFactor:   c.LearningFactor,
+		Config:           c.Config,
 	}
 
 	registerReqBytes, err := json.Marshal(registerReq)
