@@ -11,8 +11,17 @@ type SaramaProducerInterceptor struct{}
 type SaramaConsumerInterceptor struct{}
 
 func ConfigSaramaInterceptor(config *sarama.Config) {
-	config.Producer.Interceptors = []sarama.ProducerInterceptor{&SaramaProducerInterceptor{}}
-	config.Consumer.Interceptors = []sarama.ConsumerInterceptor{&SaramaConsumerInterceptor{}}
+	if config.Producer.Interceptors != nil {
+		config.Producer.Interceptors = append(config.Producer.Interceptors, &SaramaProducerInterceptor{})
+	} else {
+		config.Producer.Interceptors = []sarama.ProducerInterceptor{&SaramaProducerInterceptor{}}
+	}
+
+	if config.Consumer.Interceptors != nil {
+		config.Consumer.Interceptors = append(config.Consumer.Interceptors, &SaramaConsumerInterceptor{})
+	} else {
+		config.Consumer.Interceptors = []sarama.ConsumerInterceptor{&SaramaConsumerInterceptor{}}
+	}
 }
 
 func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
