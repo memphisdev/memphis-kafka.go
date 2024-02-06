@@ -22,17 +22,17 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 
 	byte_msg, err := msg.Value.Encode()
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]OnSend at msg.Value.Encode %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" OnSend at msg.Value.Encode %v", err.Error()))
 		return
 	}
 
-	ClientConnection.Counters.TotalBytesBeforeProduce += int64(len(byte_msg))
+	ClientConnection.Counters.TotalBytesBeforeReduction += int64(len(byte_msg))
 
 	if ClientConnection.ProducerProtoDesc != nil {
 		protoMsg, err := jsonToProto(byte_msg)
 		if err != nil {
 			// in case of a schema mismatch, send the message as is
-			ClientConnection.Counters.TotalBytesAfterProduce += int64(len(byte_msg))
+			ClientConnection.Counters.TotalBytesAfterReduction += int64(len(byte_msg))
 			ClientConnection.Counters.TotalMessagesFailedProduce++
 			return
 		} else {
@@ -40,12 +40,12 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 				Key:   []byte("superstream_schema"),
 				Value: []byte(ClientConnection.ProducerSchemaID),
 			})
-			ClientConnection.Counters.TotalBytesAfterProduce += int64(len(protoMsg))
+			ClientConnection.Counters.TotalBytesAfterReduction += int64(len(protoMsg))
 			ClientConnection.Counters.TotalMessagesSuccessfullyProduce++
 			msg.Value = sarama.ByteEncoder(protoMsg)
 		}
 	} else {
-		ClientConnection.Counters.TotalBytesAfterProduce += int64(len(byte_msg))
+		ClientConnection.Counters.TotalBytesAfterReduction += int64(len(byte_msg))
 		ClientConnection.Counters.TotalMessagesFailedProduce++
 		if ClientConnection.LearningFactorCounter <= ClientConnection.LearningFactor {
 			SendLearningMessage(byte_msg)
@@ -61,7 +61,7 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 		SendClientTypeUpdateReq(ClientConnection.ClientID, "consumer")
 	}
 
-	ClientConnection.Counters.TotalBytesBeforeConsume += int64(len(msg.Value))
+	ClientConnection.Counters.TotalBytesAfterReduction += int64(len(msg.Value))
 
 	for i, header := range msg.Headers {
 		if string(header.Key) == "superstream_schema" {
@@ -83,22 +83,22 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 				jsonMsg, err := protoToJson(msg.Value, descriptor)
 				if err != nil {
 					//Print error
-					handleError(fmt.Sprintf("[sdk: go][version: %v]OnConsume at protoToJson %v", sdkVersion, err.Error()))
+					handleError(fmt.Sprintf(" OnConsume at protoToJson %v", err.Error()))
 					return
 				} else {
 					msg.Headers = append(msg.Headers[:i], msg.Headers[i+1:]...)
 					msg.Value = jsonMsg
-					ClientConnection.Counters.TotalBytesAfterConsume += int64(len(jsonMsg))
+					ClientConnection.Counters.TotalBytesBeforeReduction += int64(len(jsonMsg))
 					ClientConnection.Counters.TotalMessagesSuccessfullyConsumed++
 				}
 			} else {
-				handleError(fmt.Sprintf("[sdk: go][version: %v]OnConsume schema not found", sdkVersion))
+				handleError(fmt.Sprintf(" OnConsume schema not found"))
 				fmt.Println("superstream: schema not found")
 				return
 			}
 			return
 		}
 	}
-	ClientConnection.Counters.TotalBytesAfterConsume += int64(len(msg.Value))
+	ClientConnection.Counters.TotalBytesBeforeReduction += int64(len(msg.Value))
 	ClientConnection.Counters.TotalMessagesFailedConsume++
 }

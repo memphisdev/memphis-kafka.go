@@ -3,5 +3,6 @@ package superstream
 import "fmt"
 
 func handleError(msg string) {
-	sendClientErrorsToBE(fmt.Sprintf("[account name: %v][clientID: %v]: %v", ClientConnection.AccountName, ClientConnection.ClientID, msg))
+	errMsg := fmt.Sprintf("[account name: %v][clientID: %v][sdk: go][version: %v]%v", ClientConnection.AccountName, ClientConnection.ClientID, sdkVersion, msg)
+	sendClientErrorsToBE(errMsg)
 }

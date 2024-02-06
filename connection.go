@@ -6,13 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
-
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -46,7 +44,6 @@ type RegisterReq struct {
 	Language         string `json:"language"`
 	Version          string `json:"version"`
 	LearningFactor   int    `json:"learning_factor"`
-	Config           Config `json:"config"`
 }
 
 type ClientReconnectionUpdateReq struct {
@@ -81,35 +78,6 @@ type GetSchemaReq struct {
 	SchemaID string `json:"schemaId"`
 }
 
-type Config struct {
-	ClientType                                string        `json:"client_type"`
-	ProducerMaxMessageBytes                   int           `json:"producer_max_messages_bytes"`
-	ProducerRequiredAcks                      string        `json:"producer_required_acks"`
-	ProducerTimeout                           time.Duration `json:"producer_timeout"`
-	ProducerRetryMax                          int           `json:"producer_retry_max"`
-	ProducerRetryBackoff                      time.Duration `json:"producer_retry_backoff"`
-	ProducerReturnErrors                      bool          `json:"producer_return_errors"`
-	ProducerReturnSuccesses                   bool          `json:"producer_return_successes"`
-	ProducerFlushMaxMessages                  int           `json:"producer_flush_max_messages"`
-	ProducerCompressionLevel                  string        `json:"producer_compression_level"`
-	ConsumerFetchMin                          int32         `json:"consumer_fetch_min"`
-	ConsumerFetchDefault                      int32         `json:"consumer_fetch_default"`
-	ConsumerRetryBackOff                      time.Duration `json:"consumer_retry_backoff"`
-	ConsumerMaxWaitTime                       time.Duration `json:"consumer_max_wait_time"`
-	ConsumerMaxProcessingTime                 time.Duration `json:"consumer_mex_processing_time"`
-	ConsumerReturnErrors                      bool          `json:"consumer_return_errors"`
-	ConsumerOffsetAutoCommitEnable            bool          `json:"consumer_offset_auto_commit_enable"`
-	ConsumerOffsetAutoCommintInterval         time.Duration `json:"consumer_offset_auto_commit_interval"`
-	ConsumerOffsetsInitial                    int           `json:"consumer_offsets_initial"`
-	ConsumerOffsetsRetryMax                   int           `json:"consumer_offsets_retry_max"`
-	ConsumerGroupSessionTimeout               time.Duration `json:"consumer_group_session_timeout"`
-	ConsumerGroupHeartBeatInterval            time.Duration `json:"consumer_group_heart_beat_interval"`
-	ConsumerGroupRebalanceTimeout             time.Duration `json:"consumer_group_rebalance_timeout"`
-	ConsumerGroupRebalanceRetryMax            int           `json:"consumer_group_rebalance_retry_max"`
-	ConsumerGroupRebalanceRetryBackOff        time.Duration `json:"consumer_group_rebalance_retry_back_off"`
-	ConsumerGroupRebalanceResetInvalidOffsets bool          `json:"consumer_group_rebalance_reset_invalid_offsets"`
-}
-
 type Client struct {
 	ClientID              int
 	AccountName           string
@@ -126,85 +94,18 @@ type Client struct {
 	ProducerSchemaID      string
 	ConsumerProtoDescMap  map[string]protoreflect.MessageDescriptor
 	Counters              ClientCounters
-	Config                Config
 }
 
 type ClientCounters struct {
-	TotalBytesBeforeProduce           int64
-	TotalBytesAfterProduce            int64
-	TotalBytesBeforeConsume           int64
-	TotalBytesAfterConsume            int64
-	TotalMessagesSuccessfullyProduce  int
-	TotalMessagesSuccessfullyConsumed int
-	TotalMessagesFailedProduce        int
-	TotalMessagesFailedConsume        int
+	TotalBytesBeforeReduction         int64 `json:"totalBytesBeforeReduction"`
+	TotalBytesAfterReduction          int64 `json:"totalBytesAfterReduction"`
+	TotalMessagesSuccessfullyProduce  int   `json:"totalMessagesSuccessfullyProduce"`
+	TotalMessagesSuccessfullyConsumed int   `json:"totalMessagesSuccessfullyConsumed"`
+	TotalMessagesFailedProduce        int   `json:"totalMessagesFailedProduce"`
+	TotalMessagesFailedConsume        int   `json:"totalMessagesFailedConsume"`
 }
 
 var ClientConnection *Client
-
-func ConfigHandler(clientType string, config *sarama.Config) Config {
-	producerConfig := config.Producer
-	consumerConfig := config.Consumer
-
-	var requiredAcks string
-
-	switch config.Producer.RequiredAcks {
-	case 0:
-		requiredAcks = "NoResponse"
-	case 1:
-		requiredAcks = "WaitForLocal"
-	case -1:
-		requiredAcks = "WaitForAll"
-	}
-
-	var compressionLevel string
-	switch config.Producer.CompressionLevel {
-	case 0:
-		compressionLevel = "CompressionNone"
-	case 1:
-		compressionLevel = "CompressionGZIP"
-	case 2:
-		compressionLevel = "CompressionSnappy"
-	case 3:
-		compressionLevel = "CompressionZSTD"
-	case 0x08:
-		compressionLevel = "compressionCodecMask"
-	case 5:
-		compressionLevel = "timestampTypeMask"
-	case -1000:
-		compressionLevel = "CompressionLevelDefault"
-	}
-	conf := Config{
-		ClientType:                                clientType,
-		ProducerMaxMessageBytes:                   producerConfig.MaxMessageBytes,
-		ProducerRequiredAcks:                      requiredAcks,
-		ProducerTimeout:                           producerConfig.Timeout,
-		ProducerRetryMax:                          producerConfig.Retry.Max,
-		ProducerRetryBackoff:                      producerConfig.Retry.Backoff,
-		ProducerReturnErrors:                      producerConfig.Return.Errors,
-		ProducerReturnSuccesses:                   producerConfig.Return.Successes,
-		ProducerFlushMaxMessages:                  producerConfig.Flush.MaxMessages,
-		ProducerCompressionLevel:                  compressionLevel,
-		ConsumerFetchMin:                          consumerConfig.Fetch.Min,
-		ConsumerFetchDefault:                      consumerConfig.Fetch.Default,
-		ConsumerRetryBackOff:                      consumerConfig.Retry.Backoff,
-		ConsumerMaxWaitTime:                       consumerConfig.MaxWaitTime,
-		ConsumerMaxProcessingTime:                 consumerConfig.MaxProcessingTime,
-		ConsumerReturnErrors:                      consumerConfig.Return.Errors,
-		ConsumerOffsetAutoCommitEnable:            consumerConfig.Offsets.AutoCommit.Enable,
-		ConsumerOffsetAutoCommintInterval:         consumerConfig.Offsets.AutoCommit.Interval,
-		ConsumerOffsetsInitial:                    int(consumerConfig.Offsets.Initial),
-		ConsumerOffsetsRetryMax:                   consumerConfig.Offsets.Retry.Max,
-		ConsumerGroupSessionTimeout:               consumerConfig.Group.Session.Timeout,
-		ConsumerGroupHeartBeatInterval:            consumerConfig.Group.Heartbeat.Interval,
-		ConsumerGroupRebalanceTimeout:             consumerConfig.Group.Rebalance.Timeout,
-		ConsumerGroupRebalanceRetryMax:            consumerConfig.Group.Rebalance.Retry.Max,
-		ConsumerGroupRebalanceRetryBackOff:        consumerConfig.Group.Rebalance.Retry.Backoff,
-		ConsumerGroupRebalanceResetInvalidOffsets: consumerConfig.Group.ResetInvalidOffsets,
-	}
-
-	return conf
-}
 
 func Init(token string, config interface{}, options ...Option) {
 	opts := GetDefaultOptions()
@@ -217,13 +118,7 @@ func Init(token string, config interface{}, options ...Option) {
 		}
 	}
 
-	var clientType string
-	if _, ok := config.(*sarama.Config); ok {
-		clientType = "kafka"
-	}
-
-	conf := ConfigHandler(clientType, config.(*sarama.Config))
-	ClientConnection = &Client{Config: conf}
+	ClientConnection = &Client{}
 
 	err := ClientConnection.InitializeNatsConnection(token, opts.Host)
 	if err != nil {
@@ -308,7 +203,8 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 			func(nc *nats.Conn) {
 				natsConnectionID, err := c.generateNatsConnectionID()
 				if err != nil {
-					handleError(fmt.Sprintf("[sdk: go][version: %v]InitializeNatsConnection at generateNatsConnectionID: %v", sdkVersion, err.Error()))
+					handleError(fmt.Sprintf(" InitializeNatsConnection at generateNatsConnectionID: %v", err.Error()))
+					return
 				}
 
 				clientReconnectionUpdateReq := ClientReconnectionUpdateReq{
@@ -318,12 +214,14 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 
 				clientReconnectionUpdateReqBytes, err := json.Marshal(clientReconnectionUpdateReq)
 				if err != nil {
-					handleError(fmt.Sprintf("[sdk: go][version: %v]InitializeNatsConnection at Marshal %v", sdkVersion, err.Error()))
+					handleError(fmt.Sprintf(" InitializeNatsConnection at Marshal %v", err.Error()))
+					return
 				}
 
 				_, err = nc.Request(clientReconnectionUpdateSubject, clientReconnectionUpdateReqBytes, 30*time.Second)
 				if err != nil {
-					handleError(fmt.Sprintf("[sdk: go][version: %v]InitializeNatsConnection at nc.Request %v", sdkVersion, err.Error()))
+					handleError(fmt.Sprintf(" InitializeNatsConnection at nc.Request %v", err.Error()))
+					return
 				}
 
 				c.NatsConnectionID = natsConnectionID
@@ -336,17 +234,17 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 		if strings.Contains(err.Error(), "nats: maximum account") {
 			return fmt.Errorf("superstream: can not connect with superstream since you have reached the maximum amount of connected clients")
 		} else if strings.Contains(err.Error(), "timeout") {
-			return fmt.Errorf("superstream: error connecting to superstream: timeout")
+			return fmt.Errorf("superstream: error connecting with superstream: timeout")
 		} else if strings.Contains(err.Error(), "unauthorized") {
-			return fmt.Errorf("superstream: error connecting to superstream: unauthorized")
+			return fmt.Errorf("superstream: error connecting with superstream: unauthorized")
 		} else {
-			return fmt.Errorf("superstream: error connecting to superstream: %v", err)
+			return fmt.Errorf("superstream: error connecting with superstream: %v", err)
 		}
 	}
 
 	js, err := nc.JetStream()
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting to superstream: %v", err)
+		return fmt.Errorf("superstream: error connecting with superstream: %v", err)
 	}
 
 	c.BrokerConnection = nc
@@ -354,7 +252,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 
 	natsConnectionID, err := c.generateNatsConnectionID()
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting to superstream: %v", err)
+		return fmt.Errorf("superstream: error connecting with superstream: %v", err)
 	}
 	c.NatsConnectionID = natsConnectionID
 
@@ -367,7 +265,6 @@ func (c *Client) RegisterClient() error {
 		Language:         "go",
 		Version:          sdkVersion,
 		LearningFactor:   c.LearningFactor,
-		Config:           c.Config,
 	}
 
 	registerReqBytes, err := json.Marshal(registerReq)
@@ -396,10 +293,8 @@ func (c *Client) RegisterClient() error {
 	c.IsConsumer = false
 	c.IsProducer = false
 	c.Counters = ClientCounters{
-		TotalBytesBeforeProduce:           0,
-		TotalBytesAfterProduce:            0,
-		TotalBytesBeforeConsume:           0,
-		TotalBytesAfterConsume:            0,
+		TotalBytesBeforeReduction:         0,
+		TotalBytesAfterReduction:          0,
 		TotalMessagesSuccessfullyProduce:  0,
 		TotalMessagesSuccessfullyConsumed: 0,
 		TotalMessagesFailedProduce:        0,
@@ -420,7 +315,7 @@ func (c *Client) SubscribeUpdates() error {
 	var err error
 	cus.Subscription, err = c.BrokerConnection.Subscribe(fmt.Sprintf(superstreamClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting to superstream %v", err)
+		return fmt.Errorf("superstream: error connecting with superstream %v", err)
 	}
 
 	return nil
@@ -434,14 +329,14 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 			var schemaUpdateReq SchemaUpdateReq
 			err := json.Unmarshal(msg.Payload, &schemaUpdateReq)
 			if err != nil {
-				handleError(fmt.Sprintf("[sdk: go][version: %v]UpdatesHandler at json.Unmarshal: %v", sdkVersion, err.Error()))
+				handleError(fmt.Sprintf(" UpdatesHandler at json.Unmarshal: %v", err.Error()))
 			}
 			desc := compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MasterMsgName, schemaUpdateReq.FileName)
 			if desc != nil {
 				ClientConnection.ProducerProtoDesc = desc
 				ClientConnection.ProducerSchemaID = schemaUpdateReq.SchemaID
 			} else {
-				handleError(fmt.Sprintf("[sdk: go][version: %v]UpdatesHandler: error compiling schema ", sdkVersion))
+				handleError(fmt.Sprintf("UpdatesHandler: error compiling schema"))
 			}
 		}
 	}
@@ -452,7 +347,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 		var update Update
 		err := json.Unmarshal(msg.Data, &update)
 		if err != nil {
-			handleError(fmt.Sprintf("[sdk: go][version: %v]SubscriptionHandler at json.Unmarshal: %v", sdkVersion, err.Error()))
+			handleError(fmt.Sprintf(" SubscriptionHandler at json.Unmarshal: %v", err.Error()))
 		}
 		c.UpdateCahn <- update
 	}
@@ -461,7 +356,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 func SendLearningMessage(msg []byte) {
 	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(superstreamLearningSubject, ClientConnection.ClientID), msg)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]SendLearningMessage at Publish %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" SendLearningMessage at Publish %v", err.Error()))
 	}
 }
 
@@ -471,7 +366,7 @@ func SendRegisterSchemaReq() {
 	}
 	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(superstreamRegisterSchemaSubject, ClientConnection.ClientID), []byte(""))
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]SendRegisterSchemaReq at Publish %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" SendRegisterSchemaReq at Publish %v", err.Error()))
 	} else {
 		ClientConnection.LearningRequestSent = true
 	}
@@ -481,19 +376,19 @@ func compileMsgDescriptor(desc []byte, MasterMsgName, fileName string) protorefl
 	descriptorSet := descriptorpb.FileDescriptorSet{}
 	err := proto.Unmarshal(desc, &descriptorSet)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at proto.Unmarshal %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" compileMsgDescriptor at proto.Unmarshal %v", err.Error()))
 		return nil
 	}
 
 	localRegistry, err := protodesc.NewFiles(&descriptorSet)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at protodesc.NewFiles %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" compileMsgDescriptor at protodesc.NewFiles %v", err.Error()))
 		return nil
 	}
 
 	fileDesc, err := localRegistry.FindFileByPath(fileName)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at FindFileByPath %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" compileMsgDescriptor at FindFileByPath %v", err.Error()))
 		return nil
 	}
 
@@ -509,21 +404,21 @@ func SentGetSchemaRequest(schemaID string) error {
 
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at json.Marshal %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" compileMsgDescriptor at json.Marshal %v", err.Error()))
 		ClientConnection.GetSchemaRequestSent = false
 		return err
 	}
 
 	msg, err := ClientConnection.BrokerConnection.Request(fmt.Sprintf(superstreamGetSchemaSubject, ClientConnection.ClientID), reqBytes, 30*time.Second)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at Request %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" compileMsgDescriptor at Request %v", err.Error()))
 		ClientConnection.GetSchemaRequestSent = false
 		return err
 	}
 	var resp SchemaUpdateReq
 	err = json.Unmarshal(msg.Data, &resp)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor at json.Unmarshal %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" compileMsgDescriptor at json.Unmarshal %v", err.Error()))
 		ClientConnection.GetSchemaRequestSent = false
 		return err
 	}
@@ -531,7 +426,7 @@ func SentGetSchemaRequest(schemaID string) error {
 	if desc != nil {
 		ClientConnection.ConsumerProtoDescMap[resp.SchemaID] = desc
 	} else {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]compileMsgDescriptor: error compiling schema", sdkVersion))
+		handleError(fmt.Sprintf(" compileMsgDescriptor: error compiling schema"))
 		ClientConnection.GetSchemaRequestSent = false
 		return fmt.Errorf("superstream: error compiling schema")
 	}
@@ -553,12 +448,12 @@ func SendClientTypeUpdateReq(clientID int, clientType string) {
 
 	clientTypeUpdateReqBytes, err := json.Marshal(clientTypeUpdateReq)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]SendClientTypeUpdateReq at json.Marshal %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" SendClientTypeUpdateReq at json.Marshal %v", err.Error()))
 	}
 
 	err = ClientConnection.BrokerConnection.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
 	if err != nil {
-		handleError(fmt.Sprintf("[sdk: go][version: %v]SendClientTypeUpdateReq at Publish %v", sdkVersion, err.Error()))
+		handleError(fmt.Sprintf(" SendClientTypeUpdateReq at Publish %v", err.Error()))
 	}
 }
 
@@ -578,18 +473,18 @@ func sendClientErrorsToBE(errMsg string) {
 }
 
 func reportCounters() {
-	ticker := time.NewTicker(5 * time.Minute) //change to
+	ticker := time.NewTicker(5 * time.Minute)
 	for {
 		select {
 		case <-ticker.C:
 			byteCounters, err := json.Marshal(ClientConnection.Counters)
 			if err != nil {
-				handleError(fmt.Sprintf("[sdk: go][version: %v]reportCounters at json.Marshal %v", sdkVersion, err.Error()))
+				handleError(fmt.Sprintf(" reportCounters at json.Marshal %v", err.Error()))
 			}
 
 			err = ClientConnection.BrokerConnection.Publish(fmt.Sprintf(superstreamCountersSubject, ClientConnection.ClientID), byteCounters)
 			if err != nil {
-				handleError(fmt.Sprintf("[sdk: go][version: %v]reportCounters at Publish %v", sdkVersion, err.Error()))
+				handleError(fmt.Sprintf(" reportCounters at Publish %v", err.Error()))
 			}
 		}
 	}
