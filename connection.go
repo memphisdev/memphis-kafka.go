@@ -122,20 +122,20 @@ func Init(token string, config interface{}, options ...Option) {
 
 	err := ClientConnection.InitializeNatsConnection(token, opts.Host)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("superstream: ", err.Error())
 		return
 	}
 
 	ClientConnection.LearningFactor = opts.LearningFactor
 	err = ClientConnection.RegisterClient()
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("superstream: ", err.Error())
 		return
 	}
 
 	err = ClientConnection.SubscribeUpdates()
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("superstream: ", err.Error())
 		return
 	}
 
