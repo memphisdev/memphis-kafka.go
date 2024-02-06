@@ -232,13 +232,11 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 	nc, err := nats.Connect(host, opts...)
 	if err != nil {
 		if strings.Contains(err.Error(), "nats: maximum account") {
-			return fmt.Errorf("superstream: can not connect with superstream since you have reached the maximum amount of connected clients")
-		} else if strings.Contains(err.Error(), "timeout") {
-			return fmt.Errorf("superstream: error connecting with superstream: timeout")
-		} else if strings.Contains(err.Error(), "unauthorized") {
-			return fmt.Errorf("superstream: error connecting with superstream: unauthorized")
+			return fmt.Errorf("can not connect with superstream since you have reached the maximum amount of connected clients")
+		} else if strings.Contains(err.Error(), "invalid checksum") {
+			return fmt.Errorf("error connecting with superstream: unauthorized")
 		} else {
-			return fmt.Errorf("superstream: error connecting with superstream: %v", err)
+			return fmt.Errorf("error connecting with superstream: %v", err)
 		}
 	}
 
