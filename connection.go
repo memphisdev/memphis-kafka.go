@@ -170,6 +170,8 @@ func ConfigHandler(clientType string, config *sarama.Config) ClientConfig {
 		compressionLevel = "timestampTypeMask"
 	case -1000:
 		compressionLevel = "CompressionLevelDefault"
+	default:
+		compressionLevel = "CompressionLevelDefault"
 	}
 	conf := ClientConfig{
 		ClientType:                                clientType,
@@ -213,8 +215,13 @@ func Init(token string, config interface{}, options ...Option) {
 			}
 		}
 	}
+	var clientType string
+	if _, ok := config.(*sarama.Config); ok {
+		clientType = "kafka"
+	}
 
-	ClientConnection = &Client{}
+	conf := ConfigHandler(clientType, config.(*sarama.Config))
+	ClientConnection = &Client{Config: conf}
 
 	err := ClientConnection.InitializeNatsConnection(token, opts.Host)
 	if err != nil {
@@ -359,6 +366,7 @@ func (c *Client) RegisterClient() error {
 		Language:         "go",
 		Version:          sdkVersion,
 		LearningFactor:   c.LearningFactor,
+		Config:           c.Config,
 	}
 
 	registerReqBytes, err := json.Marshal(registerReq)
