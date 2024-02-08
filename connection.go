@@ -288,6 +288,7 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 
 	opts := []nats.Option{
 		nats.MaxReconnects(-1),
+		nats.Timeout(30 * time.Second),
 		nats.ReconnectWait(1 * time.Second),
 		nats.UserJWT(
 			func() (string, error) { // Callback to return the user JWT
