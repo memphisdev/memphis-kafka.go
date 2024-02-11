@@ -32,6 +32,8 @@ type Option func(*Options) error
 type Options struct {
 	Host           string
 	LearningFactor int
+	ConsumerGroup  string
+	Servers        string
 }
 
 type RegisterResp struct {
@@ -258,6 +260,20 @@ func Close() {
 func Host(host string) Option {
 	return func(o *Options) error {
 		o.Host = host
+		return nil
+	}
+}
+
+func ConsumerGroup(consumerGroup string) Option {
+	return func(o *Options) error {
+		o.ConsumerGroup = consumerGroup
+		return nil
+	}
+}
+
+func Servers(servers string) Option {
+	return func(o *Options) error {
+		o.Servers = servers
 		return nil
 	}
 }
