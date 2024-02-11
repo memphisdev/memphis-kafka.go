@@ -25,6 +25,10 @@ func ConfigSaramaInterceptor(config *sarama.Config) {
 }
 
 func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
+	if ClientConnection.Config.ProducerTopicsPartitions == nil {
+		ClientConnection.Config.ProducerTopicsPartitions = map[string]int32{}
+	}
+	ClientConnection.Config.ProducerTopicsPartitions[msg.Topic] = msg.Partition
 	if !ClientConnection.IsProducer {
 		SendClientTypeUpdateReq(ClientConnection.ClientID, "producer")
 	}
@@ -70,6 +74,11 @@ func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 		SendClientTypeUpdateReq(ClientConnection.ClientID, "consumer")
 	}
 
+	if ClientConnection.Config.ConsumerTopicsPartitions == nil {
+		ClientConnection.Config.ConsumerTopicsPartitions = map[string]int32{}
+	}
+
+	ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic] = msg.Partition
 	ClientConnection.Counters.TotalBytesAfterReduction += int64(len(msg.Value))
 
 	for i, header := range msg.Headers {
