@@ -69,16 +69,32 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 	}
 }
 
+func contains(slice []int32, element int32) bool {
+	for _, elem := range slice {
+		if elem == element {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
 	if !ClientConnection.IsConsumer {
 		SendClientTypeUpdateReq(ClientConnection.ClientID, "consumer")
 	}
 
 	if ClientConnection.Config.ConsumerTopicsPartitions == nil {
-		ClientConnection.Config.ConsumerTopicsPartitions = map[string]int32{}
+		ClientConnection.Config.ConsumerTopicsPartitions = map[string][]int32{}
 	}
 
-	ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic] = msg.Partition
+	if partitions, ok := ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic]; ok {
+		if !contains(partitions, msg.Partition) {
+			ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic] = append(ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic], msg.Partition)
+		}
+	} else {
+		ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic] = []int32{msg.Partition}
+	}
+
 	ClientConnection.Counters.TotalBytesAfterReduction += int64(len(msg.Value))
 
 	for i, header := range msg.Headers {
