@@ -24,7 +24,7 @@ const (
 	superstreamClientUpdatesSubject  = "internal.updates.%v"
 	superstreamGetSchemaSubject      = "internal.schema.getSchema.%v"
 	superstreamErrorSubject          = "internal.clientErrors"
-	superstreamCountersSubject       = "internal_tasks.countersUpdate.%v"
+	superstreamClientsUpdateSubject  = "internal_tasks.clientsUpdate.%v"
 )
 
 type Option func(*Options) error
@@ -81,32 +81,35 @@ type GetSchemaReq struct {
 }
 
 type ClientConfig struct {
-	ClientType                                string        `json:"client_type"`
-	ProducerMaxMessageBytes                   int           `json:"producer_max_messages_bytes"`
-	ProducerRequiredAcks                      string        `json:"producer_required_acks"`
-	ProducerTimeout                           time.Duration `json:"producer_timeout"`
-	ProducerRetryMax                          int           `json:"producer_retry_max"`
-	ProducerRetryBackoff                      time.Duration `json:"producer_retry_backoff"`
-	ProducerReturnErrors                      bool          `json:"producer_return_errors"`
-	ProducerReturnSuccesses                   bool          `json:"producer_return_successes"`
-	ProducerFlushMaxMessages                  int           `json:"producer_flush_max_messages"`
-	ProducerCompressionLevel                  string        `json:"producer_compression_level"`
-	ConsumerFetchMin                          int32         `json:"consumer_fetch_min"`
-	ConsumerFetchDefault                      int32         `json:"consumer_fetch_default"`
-	ConsumerRetryBackOff                      time.Duration `json:"consumer_retry_backoff"`
-	ConsumerMaxWaitTime                       time.Duration `json:"consumer_max_wait_time"`
-	ConsumerMaxProcessingTime                 time.Duration `json:"consumer_mex_processing_time"`
-	ConsumerReturnErrors                      bool          `json:"consumer_return_errors"`
-	ConsumerOffsetAutoCommitEnable            bool          `json:"consumer_offset_auto_commit_enable"`
-	ConsumerOffsetAutoCommintInterval         time.Duration `json:"consumer_offset_auto_commit_interval"`
-	ConsumerOffsetsInitial                    int           `json:"consumer_offsets_initial"`
-	ConsumerOffsetsRetryMax                   int           `json:"consumer_offsets_retry_max"`
-	ConsumerGroupSessionTimeout               time.Duration `json:"consumer_group_session_timeout"`
-	ConsumerGroupHeartBeatInterval            time.Duration `json:"consumer_group_heart_beat_interval"`
-	ConsumerGroupRebalanceTimeout             time.Duration `json:"consumer_group_rebalance_timeout"`
-	ConsumerGroupRebalanceRetryMax            int           `json:"consumer_group_rebalance_retry_max"`
-	ConsumerGroupRebalanceRetryBackOff        time.Duration `json:"consumer_group_rebalance_retry_back_off"`
-	ConsumerGroupRebalanceResetInvalidOffsets bool          `json:"consumer_group_rebalance_reset_invalid_offsets"`
+	ClientType                                string         `json:"client_type"`
+	ProducerMaxMessageBytes                   int            `json:"producer_max_messages_bytes"`
+	ProducerRequiredAcks                      string         `json:"producer_required_acks"`
+	ProducerTimeout                           time.Duration  `json:"producer_timeout"`
+	ProducerRetryMax                          int            `json:"producer_retry_max"`
+	ProducerRetryBackoff                      time.Duration  `json:"producer_retry_backoff"`
+	ProducerReturnErrors                      bool           `json:"producer_return_errors"`
+	ProducerReturnSuccesses                   bool           `json:"producer_return_successes"`
+	ProducerFlushMaxMessages                  int            `json:"producer_flush_max_messages"`
+	ProducerCompressionLevel                  string         `json:"producer_compression_level"`
+	ConsumerFetchMin                          int32          `json:"consumer_fetch_min"`
+	ConsumerFetchDefault                      int32          `json:"consumer_fetch_default"`
+	ConsumerRetryBackOff                      time.Duration  `json:"consumer_retry_backoff"`
+	ConsumerMaxWaitTime                       time.Duration  `json:"consumer_max_wait_time"`
+	ConsumerMaxProcessingTime                 time.Duration  `json:"consumer_mex_processing_time"`
+	ConsumerReturnErrors                      bool           `json:"consumer_return_errors"`
+	ConsumerOffsetAutoCommitEnable            bool           `json:"consumer_offset_auto_commit_enable"`
+	ConsumerOffsetAutoCommintInterval         time.Duration  `json:"consumer_offset_auto_commit_interval"`
+	ConsumerOffsetsInitial                    int            `json:"consumer_offsets_initial"`
+	ConsumerOffsetsRetryMax                   int            `json:"consumer_offsets_retry_max"`
+	ConsumerGroupSessionTimeout               time.Duration  `json:"consumer_group_session_timeout"`
+	ConsumerGroupHeartBeatInterval            time.Duration  `json:"consumer_group_heart_beat_interval"`
+	ConsumerGroupRebalanceTimeout             time.Duration  `json:"consumer_group_rebalance_timeout"`
+	ConsumerGroupRebalanceRetryMax            int            `json:"consumer_group_rebalance_retry_max"`
+	ConsumerGroupRebalanceRetryBackOff        time.Duration  `json:"consumer_group_rebalance_retry_back_off"`
+	ConsumerGroupRebalanceResetInvalidOffsets bool           `json:"consumer_group_rebalance_reset_invalid_offsets"`
+	ConsumerGroupId                           int            `json:"consumer_group_id"`
+	Host                                      string         `json:"host"`
+	TopicsPartitions                          map[string]int `json:"topic_partitions"`
 }
 
 type Client struct {
@@ -585,7 +588,7 @@ func reportCounters() {
 				handleError(fmt.Sprintf(" reportCounters at json.Marshal %v", err.Error()))
 			}
 
-			err = ClientConnection.BrokerConnection.Publish(fmt.Sprintf(superstreamCountersSubject, ClientConnection.ClientID), byteCounters)
+			err = ClientConnection.BrokerConnection.Publish(fmt.Sprintf(superstreamClientsUpdateSubject, ClientConnection.ClientID), byteCounters)
 			if err != nil {
 				handleError(fmt.Sprintf(" reportCounters at Publish %v", err.Error()))
 			}
