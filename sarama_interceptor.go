@@ -16,12 +16,17 @@ type SaramaConsumerInterceptor struct {
 
 func ConfigSaramaInterceptor(config *sarama.Config, client *Client) {
 	if config.Producer.Interceptors != nil {
+		sliceCopy := make([]sarama.ProducerInterceptor, len(config.Producer.Interceptors))
+		copy(sliceCopy, config.Producer.Interceptors)
+		config.Producer.Interceptors = sliceCopy
+
 		for i, interceptor := range config.Producer.Interceptors {
 			if _, ok := interceptor.(*SaramaProducerInterceptor); ok {
-				config.Producer.Interceptors = append(config.Producer.Interceptors[:i], config.Producer.Interceptors[i+1:]...)
-				break
+				sliceCopy = append(sliceCopy[:i], sliceCopy[i+1:]...)
 			}
 		}
+
+		config.Producer.Interceptors = sliceCopy
 
 		config.Producer.Interceptors = append(config.Producer.Interceptors, &SaramaProducerInterceptor{
 			Client: client,
@@ -33,12 +38,16 @@ func ConfigSaramaInterceptor(config *sarama.Config, client *Client) {
 	}
 
 	if config.Consumer.Interceptors != nil {
+		sliceCopy := make([]sarama.ConsumerInterceptor, len(config.Consumer.Interceptors))
+		copy(sliceCopy, config.Consumer.Interceptors)
+
 		for i, interceptor := range config.Consumer.Interceptors {
 			if _, ok := interceptor.(*SaramaConsumerInterceptor); ok {
-				config.Consumer.Interceptors = append(config.Consumer.Interceptors[:i], config.Consumer.Interceptors[i+1:]...)
-				break
+				sliceCopy = append(sliceCopy[:i], sliceCopy[i+1:]...)
 			}
 		}
+
+		config.Consumer.Interceptors = sliceCopy
 
 		config.Consumer.Interceptors = append(config.Consumer.Interceptors, &SaramaConsumerInterceptor{
 			Client: client,

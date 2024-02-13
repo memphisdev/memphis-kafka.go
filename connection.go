@@ -218,7 +218,11 @@ func ConfigHandler(clientType string, config *sarama.Config) ClientConfig {
 	return conf
 }
 
-func Init(token string, config interface{}, options ...Option) {
+func Init(token string, config interface{}, options ...Option) *sarama.Config {
+
+	sconfig := config.(*sarama.Config)
+	newConfig := *sconfig
+
 	if Clients == nil {
 		Clients = make(map[int]*Client)
 	}
@@ -228,7 +232,7 @@ func Init(token string, config interface{}, options ...Option) {
 		if opt != nil {
 			if err := opt(&opts); err != nil {
 				fmt.Printf("superstream: error initializing superstream: Wrong option: %s", err.Error())
-				return
+				return nil
 			}
 		}
 	}
@@ -244,7 +248,7 @@ func Init(token string, config interface{}, options ...Option) {
 		err := InitializeNatsConnection(token, opts.Host)
 		if err != nil {
 			fmt.Println("superstream: ", err.Error())
-			return
+			return nil
 		}
 	}
 
@@ -254,7 +258,7 @@ func Init(token string, config interface{}, options ...Option) {
 	err := newClient.RegisterClient()
 	if err != nil {
 		fmt.Println("superstream: ", err.Error())
-		return
+		return nil
 	}
 
 	Clients[newClient.ClientID] = newClient
@@ -262,13 +266,13 @@ func Init(token string, config interface{}, options ...Option) {
 	err = newClient.SubscribeUpdates()
 	if err != nil {
 		fmt.Println("superstream: ", err.Error())
-		return
+		return nil
 	}
 
 	go newClient.reportClientsUpdate()
 
-	startInterceptors(config, newClient)
-	return
+	startInterceptors(&newConfig, newClient)
+	return &newConfig
 }
 
 func Close() {
