@@ -219,6 +219,10 @@ func ConfigHandler(clientType string, config *sarama.Config) ClientConfig {
 }
 
 func Init(token string, config interface{}, options ...Option) {
+	if Clients == nil {
+		Clients = make(map[int]*Client)
+	}
+
 	opts := GetDefaultOptions()
 	for _, opt := range options {
 		if opt != nil {
