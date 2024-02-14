@@ -7,64 +7,99 @@ import (
 	"github.com/IBM/sarama"
 )
 
-type SaramaProducerInterceptor struct{}
-type SaramaConsumerInterceptor struct{}
+type SaramaProducerInterceptor struct {
+	Client *Client
+}
+type SaramaConsumerInterceptor struct {
+	Client *Client
+}
 
-func ConfigSaramaInterceptor(config *sarama.Config) {
+func ConfigSaramaInterceptor(config *sarama.Config, client *Client) {
 	if config.Producer.Interceptors != nil {
-		config.Producer.Interceptors = append(config.Producer.Interceptors, &SaramaProducerInterceptor{})
+		sliceCopy := make([]sarama.ProducerInterceptor, len(config.Producer.Interceptors))
+		copy(sliceCopy, config.Producer.Interceptors)
+		config.Producer.Interceptors = sliceCopy
+
+		for i, interceptor := range config.Producer.Interceptors {
+			if _, ok := interceptor.(*SaramaProducerInterceptor); ok {
+				sliceCopy = append(sliceCopy[:i], sliceCopy[i+1:]...)
+			}
+		}
+
+		config.Producer.Interceptors = sliceCopy
+
+		config.Producer.Interceptors = append(config.Producer.Interceptors, &SaramaProducerInterceptor{
+			Client: client,
+		})
 	} else {
-		config.Producer.Interceptors = []sarama.ProducerInterceptor{&SaramaProducerInterceptor{}}
+		config.Producer.Interceptors = []sarama.ProducerInterceptor{&SaramaProducerInterceptor{
+			Client: client,
+		}}
 	}
 
 	if config.Consumer.Interceptors != nil {
-		config.Consumer.Interceptors = append(config.Consumer.Interceptors, &SaramaConsumerInterceptor{})
+		sliceCopy := make([]sarama.ConsumerInterceptor, len(config.Consumer.Interceptors))
+		copy(sliceCopy, config.Consumer.Interceptors)
+
+		for i, interceptor := range config.Consumer.Interceptors {
+			if _, ok := interceptor.(*SaramaConsumerInterceptor); ok {
+				sliceCopy = append(sliceCopy[:i], sliceCopy[i+1:]...)
+			}
+		}
+
+		config.Consumer.Interceptors = sliceCopy
+
+		config.Consumer.Interceptors = append(config.Consumer.Interceptors, &SaramaConsumerInterceptor{
+			Client: client,
+		})
 	} else {
-		config.Consumer.Interceptors = []sarama.ConsumerInterceptor{&SaramaConsumerInterceptor{}}
+		config.Consumer.Interceptors = []sarama.ConsumerInterceptor{&SaramaConsumerInterceptor{
+			Client: client,
+		}}
 	}
 }
 
 func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
-	if ClientConnection.Config.ProducerTopicsPartitions == nil {
-		ClientConnection.Config.ProducerTopicsPartitions = map[string]int32{}
+	if s.Client.Config.ProducerTopicsPartitions == nil {
+		s.Client.Config.ProducerTopicsPartitions = map[string]int32{}
 	}
-	ClientConnection.Config.ProducerTopicsPartitions[msg.Topic] = msg.Partition
-	if !ClientConnection.IsProducer {
-		SendClientTypeUpdateReq(ClientConnection.ClientID, "producer")
+	s.Client.Config.ProducerTopicsPartitions[msg.Topic] = msg.Partition
+	if !s.Client.IsProducer {
+		s.Client.SendClientTypeUpdateReq("producer")
 	}
 
 	byte_msg, err := msg.Value.Encode()
 	if err != nil {
-		handleError(fmt.Sprintf(" OnSend at msg.Value.Encode %v", err.Error()))
+		s.Client.handleError(fmt.Sprintf(" OnSend at msg.Value.Encode %v", err.Error()))
 		return
 	}
 
-	ClientConnection.Counters.TotalBytesBeforeReduction += int64(len(byte_msg))
+	s.Client.Counters.TotalBytesBeforeReduction += int64(len(byte_msg))
 
-	if ClientConnection.ProducerProtoDesc != nil {
-		protoMsg, err := jsonToProto(byte_msg)
+	if s.Client.ProducerProtoDesc != nil {
+		protoMsg, err := jsonToProto(byte_msg, s.Client.ProducerProtoDesc)
 		if err != nil {
 			// in case of a schema mismatch, send the message as is
-			ClientConnection.Counters.TotalBytesAfterReduction += int64(len(byte_msg))
-			ClientConnection.Counters.TotalMessagesFailedProduce++
+			s.Client.Counters.TotalBytesAfterReduction += int64(len(byte_msg))
+			s.Client.Counters.TotalMessagesFailedProduce++
 			return
 		} else {
 			msg.Headers = append(msg.Headers, sarama.RecordHeader{
 				Key:   []byte("superstream_schema"),
-				Value: []byte(ClientConnection.ProducerSchemaID),
+				Value: []byte(s.Client.ProducerSchemaID),
 			})
-			ClientConnection.Counters.TotalBytesAfterReduction += int64(len(protoMsg))
-			ClientConnection.Counters.TotalMessagesSuccessfullyProduce++
+			s.Client.Counters.TotalBytesAfterReduction += int64(len(protoMsg))
+			s.Client.Counters.TotalMessagesSuccessfullyProduce++
 			msg.Value = sarama.ByteEncoder(protoMsg)
 		}
 	} else {
-		ClientConnection.Counters.TotalBytesAfterReduction += int64(len(byte_msg))
-		ClientConnection.Counters.TotalMessagesFailedProduce++
-		if ClientConnection.LearningFactorCounter <= ClientConnection.LearningFactor {
-			SendLearningMessage(byte_msg)
-			ClientConnection.LearningFactorCounter++
-		} else if !ClientConnection.LearningRequestSent && ClientConnection.LearningFactorCounter >= ClientConnection.LearningFactor && ClientConnection.ProducerProtoDesc == nil {
-			SendRegisterSchemaReq()
+		s.Client.Counters.TotalBytesAfterReduction += int64(len(byte_msg))
+		s.Client.Counters.TotalMessagesFailedProduce++
+		if s.Client.LearningFactorCounter <= s.Client.LearningFactor {
+			s.Client.SendLearningMessage(byte_msg)
+			s.Client.LearningFactorCounter++
+		} else if !s.Client.LearningRequestSent && s.Client.LearningFactorCounter >= s.Client.LearningFactor && s.Client.ProducerProtoDesc == nil {
+			s.Client.SendRegisterSchemaReq()
 		}
 	}
 }
@@ -79,60 +114,60 @@ func contains(slice []int32, element int32) bool {
 }
 
 func (s *SaramaConsumerInterceptor) OnConsume(msg *sarama.ConsumerMessage) {
-	if !ClientConnection.IsConsumer {
-		SendClientTypeUpdateReq(ClientConnection.ClientID, "consumer")
+	if !s.Client.IsConsumer {
+		s.Client.SendClientTypeUpdateReq("consumer")
 	}
 
-	if ClientConnection.Config.ConsumerTopicsPartitions == nil {
-		ClientConnection.Config.ConsumerTopicsPartitions = map[string][]int32{}
+	if s.Client.Config.ConsumerTopicsPartitions == nil {
+		s.Client.Config.ConsumerTopicsPartitions = map[string][]int32{}
 	}
 
-	if partitions, ok := ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic]; ok {
+	if partitions, ok := s.Client.Config.ConsumerTopicsPartitions[msg.Topic]; ok {
 		if !contains(partitions, msg.Partition) {
-			ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic] = append(ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic], msg.Partition)
+			s.Client.Config.ConsumerTopicsPartitions[msg.Topic] = append(s.Client.Config.ConsumerTopicsPartitions[msg.Topic], msg.Partition)
 		}
 	} else {
-		ClientConnection.Config.ConsumerTopicsPartitions[msg.Topic] = []int32{msg.Partition}
+		s.Client.Config.ConsumerTopicsPartitions[msg.Topic] = []int32{msg.Partition}
 	}
 
-	ClientConnection.Counters.TotalBytesAfterReduction += int64(len(msg.Value))
+	s.Client.Counters.TotalBytesAfterReduction += int64(len(msg.Value))
 
 	for i, header := range msg.Headers {
 		if string(header.Key) == "superstream_schema" {
 			schemaID := string(header.Value)
-			_, ok := ClientConnection.ConsumerProtoDescMap[schemaID]
+			_, ok := s.Client.ConsumerProtoDescMap[schemaID]
 			if !ok {
-				if !ClientConnection.GetSchemaRequestSent {
-					SentGetSchemaRequest(schemaID)
+				if !s.Client.GetSchemaRequestSent {
+					s.Client.SentGetSchemaRequest(schemaID)
 				}
 
 				for !ok {
 					time.Sleep(500 * time.Millisecond)
-					_, ok = ClientConnection.ConsumerProtoDescMap[schemaID]
+					_, ok = s.Client.ConsumerProtoDescMap[schemaID]
 				}
 			}
 
-			descriptor, ok := ClientConnection.ConsumerProtoDescMap[schemaID]
+			descriptor, ok := s.Client.ConsumerProtoDescMap[schemaID]
 			if ok {
 				jsonMsg, err := protoToJson(msg.Value, descriptor)
 				if err != nil {
 					//Print error
-					handleError(fmt.Sprintf(" OnConsume at protoToJson %v", err.Error()))
+					s.Client.handleError(fmt.Sprintf(" OnConsume at protoToJson %v", err.Error()))
 					return
 				} else {
 					msg.Headers = append(msg.Headers[:i], msg.Headers[i+1:]...)
 					msg.Value = jsonMsg
-					ClientConnection.Counters.TotalBytesBeforeReduction += int64(len(jsonMsg))
-					ClientConnection.Counters.TotalMessagesSuccessfullyConsumed++
+					s.Client.Counters.TotalBytesBeforeReduction += int64(len(jsonMsg))
+					s.Client.Counters.TotalMessagesSuccessfullyConsumed++
 				}
 			} else {
-				handleError(fmt.Sprintf(" OnConsume schema not found"))
+				s.Client.handleError(fmt.Sprintf(" OnConsume schema not found"))
 				fmt.Println("superstream: schema not found")
 				return
 			}
 			return
 		}
 	}
-	ClientConnection.Counters.TotalBytesBeforeReduction += int64(len(msg.Value))
-	ClientConnection.Counters.TotalMessagesFailedConsume++
+	s.Client.Counters.TotalBytesBeforeReduction += int64(len(msg.Value))
+	s.Client.Counters.TotalMessagesFailedConsume++
 }

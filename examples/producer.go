@@ -23,9 +23,9 @@ func main() {
 	config.Net.TLS.Enable = true
 	config.Net.TLS.Config = nil
 
-	superstream.Init("token", config)
+	newConfig := superstream.Init("token", config)
 
-	producer, err := sarama.NewSyncProducer([]string{broker}, config)
+	producer, err := sarama.NewSyncProducer([]string{broker}, newConfig)
 	if err != nil {
 		panic(err)
 	}
