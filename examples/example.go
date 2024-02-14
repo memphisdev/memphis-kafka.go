@@ -24,6 +24,7 @@ func main() {
 	config.Net.TLS.Enable = true
 	config.Net.TLS.Config = nil
 
+	// before every producer/consumer creation you need to call superstream.Init
 	config = superstream.Init("token", config, superstream.Servers(broker))
 
 	producer, err := sarama.NewSyncProducer([]string{broker}, config)
@@ -40,7 +41,6 @@ func main() {
 		panic(err)
 	}
 
-	// createing another producer with different topic
 	config = superstream.Init("token", config, superstream.Servers(broker))
 
 	producer2, err := sarama.NewSyncProducer([]string{broker}, config)
