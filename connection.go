@@ -232,7 +232,7 @@ func Init(token string, config interface{}, options ...Option) *sarama.Config {
 		if opt != nil {
 			if err := opt(&opts); err != nil {
 				fmt.Printf("superstream: error initializing superstream: Wrong option: %s", err.Error())
-				return nil
+				return &newConfig
 			}
 		}
 	}
@@ -248,7 +248,7 @@ func Init(token string, config interface{}, options ...Option) *sarama.Config {
 		err := InitializeNatsConnection(token, opts.Host)
 		if err != nil {
 			fmt.Println("superstream: ", err.Error())
-			return nil
+			return &newConfig
 		}
 	}
 
@@ -258,7 +258,7 @@ func Init(token string, config interface{}, options ...Option) *sarama.Config {
 	err := newClient.RegisterClient()
 	if err != nil {
 		fmt.Println("superstream: ", err.Error())
-		return nil
+		return &newConfig
 	}
 
 	Clients[newClient.ClientID] = newClient
@@ -266,7 +266,7 @@ func Init(token string, config interface{}, options ...Option) *sarama.Config {
 	err = newClient.SubscribeUpdates()
 	if err != nil {
 		fmt.Println("superstream: ", err.Error())
-		return nil
+		return &newConfig
 	}
 
 	go newClient.reportClientsUpdate()
