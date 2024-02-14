@@ -24,6 +24,39 @@ func main() {
 	config.Net.TLS.Enable = true
 	config.Net.TLS.Config = nil
 
+	config = superstream.Init("token", config, superstream.Servers(broker))
+
+	producer, err := sarama.NewSyncProducer([]string{broker}, config)
+	if err != nil {
+		panic(err)
+	}
+	defer producer.Close()
+
+	_, _, err = producer.SendMessage(&sarama.ProducerMessage{
+		Topic: "test",
+		Value: sarama.StringEncoder("test"),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// createing another producer with different topic
+	config = superstream.Init("token", config, superstream.Servers(broker))
+
+	producer2, err := sarama.NewSyncProducer([]string{broker}, config)
+	if err != nil {
+		panic(err)
+	}
+	defer producer.Close()
+
+	_, _, err = producer2.SendMessage(&sarama.ProducerMessage{
+		Topic: "test2",
+		Value: sarama.StringEncoder("test2"),
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	config = superstream.Init("token", config, superstream.ConsumerGroup("group"), superstream.Servers(broker))
 
 	consumer, err := sarama.NewConsumerGroup([]string{broker}, "group", config)
