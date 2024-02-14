@@ -111,12 +111,12 @@ type ClientConfig struct {
 	ConsumerGroupRebalanceResetInvalidOffsets bool               `json:"consumer_group_rebalance_reset_invalid_offsets"`
 	ConsumerGroupId                           string             `json:"consumer_group_id"`
 	Servers                                   string             `json:"servers"`
-	ProducerTopicsPartitions                  map[string]int32   `json:"producer_topics_partitions"`
+	ProducerTopicsPartitions                  map[string][]int32 `json:"producer_topics_partitions"`
 	ConsumerTopicsPartitions                  map[string][]int32 `json:"consumer_group_topics_partitions"`
 }
 
 type TopicsPartitionsPerProducerConsumer struct {
-	ProducerTopicsPartitions map[string]int32   `json:"producer_topics_partitions"`
+	ProducerTopicsPartitions map[string][]int32 `json:"producer_topics_partitions"`
 	ConsumerTopicsPartitions map[string][]int32 `json:"consumer_group_topics_partitions"`
 }
 

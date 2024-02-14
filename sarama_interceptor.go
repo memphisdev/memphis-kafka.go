@@ -61,16 +61,24 @@ func ConfigSaramaInterceptor(config *sarama.Config, client *Client) {
 
 func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 	if s.Client.Config.ProducerTopicsPartitions == nil {
-		s.Client.Config.ProducerTopicsPartitions = map[string]int32{}
+		s.Client.Config.ProducerTopicsPartitions = map[string][]int32{}
 	}
-	s.Client.Config.ProducerTopicsPartitions[msg.Topic] = msg.Partition
+
+	if partitions, ok := s.Client.Config.ProducerTopicsPartitions[msg.Topic]; ok {
+		if !contains(partitions, msg.Partition) {
+			s.Client.Config.ProducerTopicsPartitions[msg.Topic] = append(s.Client.Config.ProducerTopicsPartitions[msg.Topic], msg.Partition)
+		}
+	} else {
+		s.Client.Config.ProducerTopicsPartitions[msg.Topic] = []int32{msg.Partition}
+	}
+
 	if !s.Client.IsProducer {
 		s.Client.SendClientTypeUpdateReq("producer")
 	}
 
 	byte_msg, err := msg.Value.Encode()
 	if err != nil {
-		s.Client.handleError(fmt.Sprintf(" OnSend at msg.Value.Encode %v", err.Error()))
+		s.Client.handleError(fmt.Sprintf("OnSend at msg.Value.Encode %v", err.Error()))
 		return
 	}
 
