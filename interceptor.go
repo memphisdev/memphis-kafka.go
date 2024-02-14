@@ -11,17 +11,17 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-func startInterceptors(config interface{}) {
+func startInterceptors(config interface{}, client *Client) {
 	if config == nil {
-		handleError(fmt.Sprintf(" startInterceptors: config is nil"))
+		client.handleError(fmt.Sprintf(" startInterceptors: config is nil"))
 		return
 	}
 
 	if config, ok := config.(*sarama.Config); ok {
-		ConfigSaramaInterceptor(config)
+		ConfigSaramaInterceptor(config, client)
 		return
 	} else {
-		handleError(fmt.Sprintf(" startInterceptors: unsupported sdk"))
+		client.handleError(fmt.Sprintf(" startInterceptors: unsupported sdk"))
 		fmt.Println("superstream: unsupported sdk")
 		return
 	}
@@ -42,8 +42,8 @@ func protoToJson(msgBytes []byte, desc protoreflect.MessageDescriptor) ([]byte, 
 	return jsonBytes, nil
 }
 
-func jsonToProto(msgBytes []byte) ([]byte, error) {
-	newMsg := dynamicpb.NewMessage(ClientConnection.ProducerProtoDesc)
+func jsonToProto(msgBytes []byte, desc protoreflect.MessageDescriptor) ([]byte, error) {
+	newMsg := dynamicpb.NewMessage(desc)
 	err := protojson.Unmarshal(msgBytes, newMsg)
 	if err != nil {
 		return nil, err

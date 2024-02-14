@@ -24,7 +24,7 @@ const (
 	superstreamClientUpdatesSubject  = "internal.updates.%v"
 	superstreamGetSchemaSubject      = "internal.schema.getSchema.%v"
 	superstreamErrorSubject          = "internal.clientErrors"
-	superstreamCountersSubject       = "internal_tasks.countersUpdate.%v"
+	superstreamClientsUpdateSubject  = "internal_tasks.clientsUpdate.%v.%v"
 )
 
 type Option func(*Options) error
@@ -32,16 +32,18 @@ type Option func(*Options) error
 type Options struct {
 	Host           string
 	LearningFactor int
+	ConsumerGroup  string
+	Servers        string
 }
 
 type RegisterResp struct {
-	ClientID       int    `json:"clientId"`
-	AccountName    string `json:"accountName"`
-	LearningFactor int    `json:"learningFactor"`
+	ClientID       int    `json:"client_id"`
+	AccountName    string `json:"account_name"`
+	LearningFactor int    `json:"learning_factor"`
 }
 
 type RegisterReq struct {
-	NatsConnectionID string       `json:"natsConnectiontId"`
+	NatsConnectionID string       `json:"nats_connection_id"`
 	Language         string       `json:"language"`
 	Version          string       `json:"version"`
 	LearningFactor   int          `json:"learning_factor"`
@@ -49,12 +51,12 @@ type RegisterReq struct {
 }
 
 type ClientReconnectionUpdateReq struct {
-	NewNatsConnectionID string `json:"newNatsConnectiontId"`
-	ClientID            int    `json:"clientId"`
+	NewNatsConnectionID string `json:"new_nats_connection_id"`
+	ClientID            int    `json:"client_id"`
 }
 
 type ClientTypeUpdateReq struct {
-	ClientID int    `json:"clientId"`
+	ClientID int    `json:"client_id"`
 	Type     string `json:"type"`
 }
 
@@ -77,36 +79,45 @@ type SchemaUpdateReq struct {
 }
 
 type GetSchemaReq struct {
-	SchemaID string `json:"schemaId"`
+	SchemaID string `json:"schema_id"`
 }
 
 type ClientConfig struct {
-	ClientType                                string        `json:"client_type"`
-	ProducerMaxMessageBytes                   int           `json:"producer_max_messages_bytes"`
-	ProducerRequiredAcks                      string        `json:"producer_required_acks"`
-	ProducerTimeout                           time.Duration `json:"producer_timeout"`
-	ProducerRetryMax                          int           `json:"producer_retry_max"`
-	ProducerRetryBackoff                      time.Duration `json:"producer_retry_backoff"`
-	ProducerReturnErrors                      bool          `json:"producer_return_errors"`
-	ProducerReturnSuccesses                   bool          `json:"producer_return_successes"`
-	ProducerFlushMaxMessages                  int           `json:"producer_flush_max_messages"`
-	ProducerCompressionLevel                  string        `json:"producer_compression_level"`
-	ConsumerFetchMin                          int32         `json:"consumer_fetch_min"`
-	ConsumerFetchDefault                      int32         `json:"consumer_fetch_default"`
-	ConsumerRetryBackOff                      time.Duration `json:"consumer_retry_backoff"`
-	ConsumerMaxWaitTime                       time.Duration `json:"consumer_max_wait_time"`
-	ConsumerMaxProcessingTime                 time.Duration `json:"consumer_mex_processing_time"`
-	ConsumerReturnErrors                      bool          `json:"consumer_return_errors"`
-	ConsumerOffsetAutoCommitEnable            bool          `json:"consumer_offset_auto_commit_enable"`
-	ConsumerOffsetAutoCommintInterval         time.Duration `json:"consumer_offset_auto_commit_interval"`
-	ConsumerOffsetsInitial                    int           `json:"consumer_offsets_initial"`
-	ConsumerOffsetsRetryMax                   int           `json:"consumer_offsets_retry_max"`
-	ConsumerGroupSessionTimeout               time.Duration `json:"consumer_group_session_timeout"`
-	ConsumerGroupHeartBeatInterval            time.Duration `json:"consumer_group_heart_beat_interval"`
-	ConsumerGroupRebalanceTimeout             time.Duration `json:"consumer_group_rebalance_timeout"`
-	ConsumerGroupRebalanceRetryMax            int           `json:"consumer_group_rebalance_retry_max"`
-	ConsumerGroupRebalanceRetryBackOff        time.Duration `json:"consumer_group_rebalance_retry_back_off"`
-	ConsumerGroupRebalanceResetInvalidOffsets bool          `json:"consumer_group_rebalance_reset_invalid_offsets"`
+	ClientType                                string             `json:"client_type"`
+	ProducerMaxMessageBytes                   int                `json:"producer_max_messages_bytes"`
+	ProducerRequiredAcks                      string             `json:"producer_required_acks"`
+	ProducerTimeout                           time.Duration      `json:"producer_timeout"`
+	ProducerRetryMax                          int                `json:"producer_retry_max"`
+	ProducerRetryBackoff                      time.Duration      `json:"producer_retry_backoff"`
+	ProducerReturnErrors                      bool               `json:"producer_return_errors"`
+	ProducerReturnSuccesses                   bool               `json:"producer_return_successes"`
+	ProducerFlushMaxMessages                  int                `json:"producer_flush_max_messages"`
+	ProducerCompressionLevel                  string             `json:"producer_compression_level"`
+	ConsumerFetchMin                          int32              `json:"consumer_fetch_min"`
+	ConsumerFetchDefault                      int32              `json:"consumer_fetch_default"`
+	ConsumerRetryBackOff                      time.Duration      `json:"consumer_retry_backoff"`
+	ConsumerMaxWaitTime                       time.Duration      `json:"consumer_max_wait_time"`
+	ConsumerMaxProcessingTime                 time.Duration      `json:"consumer_mex_processing_time"`
+	ConsumerReturnErrors                      bool               `json:"consumer_return_errors"`
+	ConsumerOffsetAutoCommitEnable            bool               `json:"consumer_offset_auto_commit_enable"`
+	ConsumerOffsetAutoCommintInterval         time.Duration      `json:"consumer_offset_auto_commit_interval"`
+	ConsumerOffsetsInitial                    int                `json:"consumer_offsets_initial"`
+	ConsumerOffsetsRetryMax                   int                `json:"consumer_offsets_retry_max"`
+	ConsumerGroupSessionTimeout               time.Duration      `json:"consumer_group_session_timeout"`
+	ConsumerGroupHeartBeatInterval            time.Duration      `json:"consumer_group_heart_beat_interval"`
+	ConsumerGroupRebalanceTimeout             time.Duration      `json:"consumer_group_rebalance_timeout"`
+	ConsumerGroupRebalanceRetryMax            int                `json:"consumer_group_rebalance_retry_max"`
+	ConsumerGroupRebalanceRetryBackOff        time.Duration      `json:"consumer_group_rebalance_retry_back_off"`
+	ConsumerGroupRebalanceResetInvalidOffsets bool               `json:"consumer_group_rebalance_reset_invalid_offsets"`
+	ConsumerGroupId                           string             `json:"consumer_group_id"`
+	Servers                                   string             `json:"servers"`
+	ProducerTopicsPartitions                  map[string][]int32 `json:"producer_topics_partitions"`
+	ConsumerTopicsPartitions                  map[string][]int32 `json:"consumer_group_topics_partitions"`
+}
+
+type TopicsPartitionsPerProducerConsumer struct {
+	ProducerTopicsPartitions map[string][]int32 `json:"producer_topics_partitions"`
+	ConsumerTopicsPartitions map[string][]int32 `json:"consumer_group_topics_partitions"`
 }
 
 type Client struct {
@@ -119,8 +130,6 @@ type Client struct {
 	LearningFactorCounter int
 	LearningRequestSent   bool
 	GetSchemaRequestSent  bool
-	BrokerConnection      *nats.Conn
-	JSContext             nats.JetStreamContext
 	ProducerProtoDesc     protoreflect.MessageDescriptor
 	ProducerSchemaID      string
 	ConsumerProtoDescMap  map[string]protoreflect.MessageDescriptor
@@ -128,16 +137,20 @@ type Client struct {
 	Config                ClientConfig
 }
 
+var BrokerConnection *nats.Conn
+var JSContext nats.JetStreamContext
+var NatsConnectionID string
+
 type ClientCounters struct {
-	TotalBytesBeforeReduction         int64 `json:"totalBytesBeforeReduction"`
-	TotalBytesAfterReduction          int64 `json:"totalBytesAfterReduction"`
-	TotalMessagesSuccessfullyProduce  int   `json:"totalMessagesSuccessfullyProduce"`
-	TotalMessagesSuccessfullyConsumed int   `json:"totalMessagesSuccessfullyConsumed"`
-	TotalMessagesFailedProduce        int   `json:"totalMessagesFailedProduce"`
-	TotalMessagesFailedConsume        int   `json:"totalMessagesFailedConsume"`
+	TotalBytesBeforeReduction         int64 `json:"total_bytes_before_reduction"`
+	TotalBytesAfterReduction          int64 `json:"total_bytes_after_reduction"`
+	TotalMessagesSuccessfullyProduce  int   `json:"total_messages_successfully_produce"`
+	TotalMessagesSuccessfullyConsumed int   `json:"total_messages_successfully_consumed"`
+	TotalMessagesFailedProduce        int   `json:"total_messages_failed_produce"`
+	TotalMessagesFailedConsume        int   `json:"total_messages_failed_consume"`
 }
 
-var ClientConnection *Client
+var Clients map[int]*Client
 
 func ConfigHandler(clientType string, config *sarama.Config) ClientConfig {
 	producerConfig := config.Producer
@@ -205,13 +218,21 @@ func ConfigHandler(clientType string, config *sarama.Config) ClientConfig {
 	return conf
 }
 
-func Init(token string, config interface{}, options ...Option) {
+func Init(token string, config interface{}, options ...Option) *sarama.Config {
+
+	sconfig := config.(*sarama.Config)
+	newConfig := *sconfig
+
+	if Clients == nil {
+		Clients = make(map[int]*Client)
+	}
+
 	opts := GetDefaultOptions()
 	for _, opt := range options {
 		if opt != nil {
 			if err := opt(&opts); err != nil {
 				fmt.Printf("superstream: error initializing superstream: Wrong option: %s", err.Error())
-				return
+				return &newConfig
 			}
 		}
 	}
@@ -221,40 +242,60 @@ func Init(token string, config interface{}, options ...Option) {
 	}
 
 	conf := ConfigHandler(clientType, config.(*sarama.Config))
-	ClientConnection = &Client{Config: conf}
+	newClient := &Client{Config: conf}
 
-	err := ClientConnection.InitializeNatsConnection(token, opts.Host)
-	if err != nil {
-		fmt.Println("superstream: ", err.Error())
-		return
+	if BrokerConnection == nil {
+		err := InitializeNatsConnection(token, opts.Host)
+		if err != nil {
+			fmt.Println("superstream: ", err.Error())
+			return &newConfig
+		}
 	}
 
-	ClientConnection.LearningFactor = opts.LearningFactor
-	err = ClientConnection.RegisterClient()
+	newClient.LearningFactor = opts.LearningFactor
+	newClient.Config.Servers = opts.Servers
+	newClient.Config.ConsumerGroupId = opts.ConsumerGroup
+	err := newClient.RegisterClient()
 	if err != nil {
 		fmt.Println("superstream: ", err.Error())
-		return
+		return &newConfig
 	}
 
-	err = ClientConnection.SubscribeUpdates()
+	Clients[newClient.ClientID] = newClient
+
+	err = newClient.SubscribeUpdates()
 	if err != nil {
 		fmt.Println("superstream: ", err.Error())
-		return
+		return &newConfig
 	}
 
-	go reportCounters()
+	go newClient.reportClientsUpdate()
 
-	startInterceptors(config)
-	return
+	startInterceptors(&newConfig, newClient)
+	return &newConfig
 }
 
 func Close() {
-	ClientConnection.BrokerConnection.Close()
+	BrokerConnection.Close()
 }
 
 func Host(host string) Option {
 	return func(o *Options) error {
 		o.Host = host
+		return nil
+	}
+}
+
+func ConsumerGroup(consumerGroup string) Option {
+	return func(o *Options) error {
+		o.ConsumerGroup = consumerGroup
+		return nil
+	}
+}
+
+func Servers(servers string) Option {
+	return func(o *Options) error {
+		o.Servers = servers
 		return nil
 	}
 }
@@ -276,7 +317,7 @@ func GetDefaultOptions() Options {
 	}
 }
 
-func (c *Client) InitializeNatsConnection(token, host string) error {
+func InitializeNatsConnection(token, host string) error {
 
 	splitedToken := strings.Split(token, ":::")
 	if len(splitedToken) != 2 {
@@ -305,30 +346,33 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 		),
 		nats.ReconnectHandler(
 			func(nc *nats.Conn) {
-				natsConnectionID, err := c.generateNatsConnectionID()
-				if err != nil {
-					handleError(fmt.Sprintf(" InitializeNatsConnection at generateNatsConnectionID: %v", err.Error()))
-					return
+				var natsConnectionID string
+				for _, c := range Clients {
+					natsConnectionID, err := generateNatsConnectionID()
+					if err != nil {
+						c.handleError(fmt.Sprintf(" InitializeNatsConnection at generateNatsConnectionID: %v", err.Error()))
+						return
+					}
+
+					clientReconnectionUpdateReq := ClientReconnectionUpdateReq{
+						NewNatsConnectionID: natsConnectionID,
+						ClientID:            c.ClientID,
+					}
+
+					clientReconnectionUpdateReqBytes, err := json.Marshal(clientReconnectionUpdateReq)
+					if err != nil {
+						c.handleError(fmt.Sprintf(" InitializeNatsConnection at Marshal %v", err.Error()))
+						return
+					}
+
+					_, err = nc.Request(clientReconnectionUpdateSubject, clientReconnectionUpdateReqBytes, 30*time.Second)
+					if err != nil {
+						c.handleError(fmt.Sprintf(" InitializeNatsConnection at nc.Request %v", err.Error()))
+						return
+					}
 				}
 
-				clientReconnectionUpdateReq := ClientReconnectionUpdateReq{
-					NewNatsConnectionID: natsConnectionID,
-					ClientID:            c.ClientID,
-				}
-
-				clientReconnectionUpdateReqBytes, err := json.Marshal(clientReconnectionUpdateReq)
-				if err != nil {
-					handleError(fmt.Sprintf(" InitializeNatsConnection at Marshal %v", err.Error()))
-					return
-				}
-
-				_, err = nc.Request(clientReconnectionUpdateSubject, clientReconnectionUpdateReqBytes, 30*time.Second)
-				if err != nil {
-					handleError(fmt.Sprintf(" InitializeNatsConnection at nc.Request %v", err.Error()))
-					return
-				}
-
-				c.NatsConnectionID = natsConnectionID
+				NatsConnectionID = natsConnectionID
 			},
 		),
 	}
@@ -349,21 +393,21 @@ func (c *Client) InitializeNatsConnection(token, host string) error {
 		return fmt.Errorf("superstream: error connecting with superstream: %v", err)
 	}
 
-	c.BrokerConnection = nc
-	c.JSContext = js
+	BrokerConnection = nc
+	JSContext = js
 
-	natsConnectionID, err := c.generateNatsConnectionID()
+	natsConnectionID, err := generateNatsConnectionID()
 	if err != nil {
 		return fmt.Errorf("superstream: error connecting with superstream: %v", err)
 	}
-	c.NatsConnectionID = natsConnectionID
+	NatsConnectionID = natsConnectionID
 
 	return nil
 }
 
 func (c *Client) RegisterClient() error {
 	registerReq := RegisterReq{
-		NatsConnectionID: c.NatsConnectionID,
+		NatsConnectionID: NatsConnectionID,
 		Language:         "go",
 		Version:          sdkVersion,
 		LearningFactor:   c.LearningFactor,
@@ -375,7 +419,7 @@ func (c *Client) RegisterClient() error {
 		return fmt.Errorf("superstream: error registering client: %v", err)
 	}
 
-	resp, err := c.BrokerConnection.Request(clientRegisterSubject, registerReqBytes, 30*time.Second)
+	resp, err := BrokerConnection.Request(clientRegisterSubject, registerReqBytes, 30*time.Second)
 	if err != nil {
 		return fmt.Errorf("superstream: error registering client: %v", err)
 	}
@@ -416,7 +460,7 @@ func (c *Client) SubscribeUpdates() error {
 	go cus.UpdatesHandler()
 
 	var err error
-	cus.Subscription, err = c.BrokerConnection.Subscribe(fmt.Sprintf(superstreamClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
+	cus.Subscription, err = BrokerConnection.Subscribe(fmt.Sprintf(superstreamClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
 	if err != nil {
 		return fmt.Errorf("superstream: error connecting with superstream %v", err)
 	}
@@ -429,17 +473,20 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 		msg := <-c.UpdateCahn
 		switch msg.Type {
 		case "LearnedSchema":
-			var schemaUpdateReq SchemaUpdateReq
-			err := json.Unmarshal(msg.Payload, &schemaUpdateReq)
-			if err != nil {
-				handleError(fmt.Sprintf(" UpdatesHandler at json.Unmarshal: %v", err.Error()))
-			}
-			desc := compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MasterMsgName, schemaUpdateReq.FileName)
-			if desc != nil {
-				ClientConnection.ProducerProtoDesc = desc
-				ClientConnection.ProducerSchemaID = schemaUpdateReq.SchemaID
-			} else {
-				handleError(fmt.Sprintf("UpdatesHandler: error compiling schema"))
+			if client, ok := Clients[c.ClientID]; ok {
+				var schemaUpdateReq SchemaUpdateReq
+				err := json.Unmarshal(msg.Payload, &schemaUpdateReq)
+				if err != nil {
+					client.handleError(fmt.Sprintf(" UpdatesHandler at json.Unmarshal: %v", err.Error()))
+				}
+				desc := client.compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MasterMsgName, schemaUpdateReq.FileName)
+				if desc != nil {
+					client.ProducerProtoDesc = desc
+					client.ProducerSchemaID = schemaUpdateReq.SchemaID
+
+				} else {
+					client.handleError(fmt.Sprintf("UpdatesHandler: error compiling schema"))
+				}
 			}
 		}
 	}
@@ -450,48 +497,48 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 		var update Update
 		err := json.Unmarshal(msg.Data, &update)
 		if err != nil {
-			handleError(fmt.Sprintf(" SubscriptionHandler at json.Unmarshal: %v", err.Error()))
+			Clients[c.ClientID].handleError(fmt.Sprintf(" SubscriptionHandler at json.Unmarshal: %v", err.Error()))
 		}
 		c.UpdateCahn <- update
 	}
 }
 
-func SendLearningMessage(msg []byte) {
-	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(superstreamLearningSubject, ClientConnection.ClientID), msg)
+func (c *Client) SendLearningMessage(msg []byte) {
+	_, err := JSContext.Publish(fmt.Sprintf(superstreamLearningSubject, c.ClientID), msg)
 	if err != nil {
-		handleError(fmt.Sprintf(" SendLearningMessage at Publish %v", err.Error()))
+		c.handleError(fmt.Sprintf(" SendLearningMessage at Publish %v", err.Error()))
 	}
 }
 
-func SendRegisterSchemaReq() {
-	if ClientConnection.LearningRequestSent {
+func (c *Client) SendRegisterSchemaReq() {
+	if c.LearningRequestSent {
 		return
 	}
-	_, err := ClientConnection.JSContext.Publish(fmt.Sprintf(superstreamRegisterSchemaSubject, ClientConnection.ClientID), []byte(""))
+	_, err := JSContext.Publish(fmt.Sprintf(superstreamRegisterSchemaSubject, c.ClientID), []byte(""))
 	if err != nil {
-		handleError(fmt.Sprintf(" SendRegisterSchemaReq at Publish %v", err.Error()))
+		c.handleError(fmt.Sprintf(" SendRegisterSchemaReq at Publish %v", err.Error()))
 	} else {
-		ClientConnection.LearningRequestSent = true
+		c.LearningRequestSent = true
 	}
 }
 
-func compileMsgDescriptor(desc []byte, MasterMsgName, fileName string) protoreflect.MessageDescriptor {
+func (c *Client) compileMsgDescriptor(desc []byte, MasterMsgName, fileName string) protoreflect.MessageDescriptor {
 	descriptorSet := descriptorpb.FileDescriptorSet{}
 	err := proto.Unmarshal(desc, &descriptorSet)
 	if err != nil {
-		handleError(fmt.Sprintf(" compileMsgDescriptor at proto.Unmarshal %v", err.Error()))
+		c.handleError(fmt.Sprintf(" compileMsgDescriptor at proto.Unmarshal %v", err.Error()))
 		return nil
 	}
 
 	localRegistry, err := protodesc.NewFiles(&descriptorSet)
 	if err != nil {
-		handleError(fmt.Sprintf(" compileMsgDescriptor at protodesc.NewFiles %v", err.Error()))
+		c.handleError(fmt.Sprintf(" compileMsgDescriptor at protodesc.NewFiles %v", err.Error()))
 		return nil
 	}
 
 	fileDesc, err := localRegistry.FindFileByPath(fileName)
 	if err != nil {
-		handleError(fmt.Sprintf(" compileMsgDescriptor at FindFileByPath %v", err.Error()))
+		c.handleError(fmt.Sprintf(" compileMsgDescriptor at FindFileByPath %v", err.Error()))
 		return nil
 	}
 
@@ -499,95 +546,114 @@ func compileMsgDescriptor(desc []byte, MasterMsgName, fileName string) protorefl
 	return msgsDesc.ByName(protoreflect.Name(MasterMsgName))
 }
 
-func SentGetSchemaRequest(schemaID string) error {
-	ClientConnection.GetSchemaRequestSent = true
+func (c *Client) SentGetSchemaRequest(schemaID string) error {
+	c.GetSchemaRequestSent = true
 	req := GetSchemaReq{
 		SchemaID: schemaID,
 	}
 
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
-		handleError(fmt.Sprintf(" compileMsgDescriptor at json.Marshal %v", err.Error()))
-		ClientConnection.GetSchemaRequestSent = false
+		c.handleError(fmt.Sprintf(" compileMsgDescriptor at json.Marshal %v", err.Error()))
+		c.GetSchemaRequestSent = false
 		return err
 	}
 
-	msg, err := ClientConnection.BrokerConnection.Request(fmt.Sprintf(superstreamGetSchemaSubject, ClientConnection.ClientID), reqBytes, 30*time.Second)
+	msg, err := BrokerConnection.Request(fmt.Sprintf(superstreamGetSchemaSubject, c.ClientID), reqBytes, 30*time.Second)
 	if err != nil {
-		handleError(fmt.Sprintf(" compileMsgDescriptor at Request %v", err.Error()))
-		ClientConnection.GetSchemaRequestSent = false
+		c.handleError(fmt.Sprintf(" compileMsgDescriptor at Request %v", err.Error()))
+		c.GetSchemaRequestSent = false
 		return err
 	}
 	var resp SchemaUpdateReq
 	err = json.Unmarshal(msg.Data, &resp)
 	if err != nil {
-		handleError(fmt.Sprintf(" compileMsgDescriptor at json.Unmarshal %v", err.Error()))
-		ClientConnection.GetSchemaRequestSent = false
+		c.handleError(fmt.Sprintf(" compileMsgDescriptor at json.Unmarshal %v", err.Error()))
+		c.GetSchemaRequestSent = false
 		return err
 	}
-	desc := compileMsgDescriptor(resp.Desc, resp.MasterMsgName, resp.FileName)
+	desc := c.compileMsgDescriptor(resp.Desc, resp.MasterMsgName, resp.FileName)
 	if desc != nil {
-		ClientConnection.ConsumerProtoDescMap[resp.SchemaID] = desc
+		c.ConsumerProtoDescMap[resp.SchemaID] = desc
 	} else {
-		handleError(fmt.Sprintf(" compileMsgDescriptor: error compiling schema"))
-		ClientConnection.GetSchemaRequestSent = false
+		c.handleError(fmt.Sprintf(" compileMsgDescriptor: error compiling schema"))
+		c.GetSchemaRequestSent = false
 		return fmt.Errorf("superstream: error compiling schema")
 	}
 	return nil
 }
 
-func SendClientTypeUpdateReq(clientID int, clientType string) {
+func (c *Client) SendClientTypeUpdateReq(clientType string) {
 	switch clientType {
 	case "consumer":
-		ClientConnection.IsConsumer = true
+		c.IsConsumer = true
 	case "producer":
-		ClientConnection.IsProducer = true
+		c.IsProducer = true
 	}
 
 	clientTypeUpdateReq := ClientTypeUpdateReq{
-		ClientID: clientID,
+		ClientID: c.ClientID,
 		Type:     clientType,
 	}
 
 	clientTypeUpdateReqBytes, err := json.Marshal(clientTypeUpdateReq)
 	if err != nil {
-		handleError(fmt.Sprintf(" SendClientTypeUpdateReq at json.Marshal %v", err.Error()))
+		c.handleError(fmt.Sprintf(" SendClientTypeUpdateReq at json.Marshal %v", err.Error()))
 	}
 
-	err = ClientConnection.BrokerConnection.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
+	err = BrokerConnection.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
 	if err != nil {
-		handleError(fmt.Sprintf(" SendClientTypeUpdateReq at Publish %v", err.Error()))
+		c.handleError(fmt.Sprintf(" SendClientTypeUpdateReq at Publish %v", err.Error()))
 	}
 }
 
-func (c *Client) generateNatsConnectionID() (string, error) {
-	natsConnectionId, err := c.BrokerConnection.GetClientID()
+func generateNatsConnectionID() (string, error) {
+	natsConnectionId, err := BrokerConnection.GetClientID()
 	if err != nil {
 		return "", err
 	}
 
-	serverName := c.BrokerConnection.ConnectedServerName()
+	serverName := BrokerConnection.ConnectedServerName()
 
 	return fmt.Sprintf("%v:%v", serverName, natsConnectionId), nil
 }
 
 func sendClientErrorsToBE(errMsg string) {
-	ClientConnection.BrokerConnection.Publish(superstreamErrorSubject, []byte(errMsg))
+	BrokerConnection.Publish(superstreamErrorSubject, []byte(errMsg))
 }
 
-func reportCounters() {
+func (c *Client) reportClientsUpdate() {
 	ticker := time.NewTicker(5 * time.Minute)
 	for {
 		select {
 		case <-ticker.C:
-			byteCounters, err := json.Marshal(ClientConnection.Counters)
+			byteCounters, err := json.Marshal(c.Counters)
 			if err != nil {
-				handleError(fmt.Sprintf(" reportCounters at json.Marshal %v", err.Error()))
+				c.handleError(fmt.Sprintf("reportClientsUpdate at json.Marshal %v", err.Error()))
 			}
 
-			err = ClientConnection.BrokerConnection.Publish(fmt.Sprintf(superstreamCountersSubject, ClientConnection.ClientID), byteCounters)
+			if c.Config.ConsumerTopicsPartitions == nil {
+				c.Config.ConsumerTopicsPartitions = map[string][]int32{}
+			}
+
+			topicPartitionConfig := TopicsPartitionsPerProducerConsumer{
+				ProducerTopicsPartitions: c.Config.ProducerTopicsPartitions,
+				ConsumerTopicsPartitions: c.Config.ConsumerTopicsPartitions,
+			}
+
+			byteConfig, err := json.Marshal(topicPartitionConfig)
 			if err != nil {
-				handleError(fmt.Sprintf(" reportCounters at Publish %v", err.Error()))
+				c.handleError(fmt.Sprintf("reportClientsUpdate at json.Marshal %v", err.Error()))
+			}
+
+			err = BrokerConnection.Publish(fmt.Sprintf(superstreamClientsUpdateSubject, "counters", c.ClientID), byteCounters)
+			if err != nil {
+				c.handleError(fmt.Sprintf("reportClientsUpdate at Publish %v to counters subject", err.Error()))
+			}
+
+			err = BrokerConnection.Publish(fmt.Sprintf(superstreamClientsUpdateSubject, "config", c.ClientID), byteConfig)
+			if err != nil {
+				c.handleError(fmt.Sprintf("reportClientsUpdate at Publish to config subject %v", err.Error()))
 			}
 		}
 	}
