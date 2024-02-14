@@ -632,6 +632,10 @@ func (c *Client) reportClientsUpdate() {
 				c.handleError(fmt.Sprintf("reportClientsUpdate at json.Marshal %v", err.Error()))
 			}
 
+			if c.Config.ConsumerTopicsPartitions == nil {
+				c.Config.ConsumerTopicsPartitions = map[string][]int32{}
+			}
+
 			topicPartitionConfig := TopicsPartitionsPerProducerConsumer{
 				ProducerTopicsPartitions: c.Config.ProducerTopicsPartitions,
 				ConsumerTopicsPartitions: c.Config.ConsumerTopicsPartitions,
