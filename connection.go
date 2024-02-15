@@ -8,7 +8,6 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nkeys"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -25,6 +24,7 @@ const (
 	superstreamGetSchemaSubject      = "internal.schema.getSchema.%v"
 	superstreamErrorSubject          = "internal.clientErrors"
 	superstreamClientsUpdateSubject  = "internal_tasks.clientsUpdate.%v.%v"
+	superstreamInternalUsername      = "superstream_internal"
 )
 
 type Option func(*Options) error
@@ -34,6 +34,7 @@ type Options struct {
 	LearningFactor int
 	ConsumerGroup  string
 	Servers        string
+	Password       string
 }
 
 type RegisterResp struct {
@@ -311,38 +312,28 @@ func LearningFactor(learningFactor int) Option {
 	}
 }
 
+func Password(password string) Option {
+	return func(o *Options) error {
+		o.Password = password
+		return nil
+	}
+}
+
 func GetDefaultOptions() Options {
 	return Options{
 		Host: "broker.superstream.dev",
 	}
 }
 
-func InitializeNatsConnection(token, host string) error {
-
-	splitedToken := strings.Split(token, ":::")
-	if len(splitedToken) != 2 {
-		return fmt.Errorf("superstream: token is not valid")
-	}
-
-	JWT := splitedToken[0]
-	Nkey := splitedToken[1]
+func InitializeNatsConnection(password, host string) error {
 
 	opts := []nats.Option{
 		nats.MaxReconnects(-1),
 		nats.Timeout(30 * time.Second),
 		nats.ReconnectWait(1 * time.Second),
-		nats.UserJWT(
-			func() (string, error) { // Callback to return the user JWT
-				return JWT, nil
-			},
-			func(nonce []byte) ([]byte, error) { // Callback to sign the nonce with user's NKey seed
-				userNKey, err := nkeys.FromSeed([]byte(Nkey))
-				if err != nil {
-					return nil, err
-				}
-				defer userNKey.Wipe()
-				return userNKey.Sign(nonce)
-			},
+		nats.UserInfo(
+			superstreamInternalUsername,
+			password,
 		),
 		nats.ReconnectHandler(
 			func(nc *nats.Conn) {
