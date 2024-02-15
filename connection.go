@@ -34,7 +34,6 @@ type Options struct {
 	LearningFactor int
 	ConsumerGroup  string
 	Servers        string
-	Password       string
 }
 
 type RegisterResp struct {
@@ -312,20 +311,13 @@ func LearningFactor(learningFactor int) Option {
 	}
 }
 
-func Password(password string) Option {
-	return func(o *Options) error {
-		o.Password = password
-		return nil
-	}
-}
-
 func GetDefaultOptions() Options {
 	return Options{
 		Host: "broker.superstream.dev",
 	}
 }
 
-func InitializeNatsConnection(password, host string) error {
+func InitializeNatsConnection(token, host string) error {
 
 	opts := []nats.Option{
 		nats.MaxReconnects(-1),
@@ -333,7 +325,7 @@ func InitializeNatsConnection(password, host string) error {
 		nats.ReconnectWait(1 * time.Second),
 		nats.UserInfo(
 			superstreamInternalUsername,
-			password,
+			token,
 		),
 		nats.ReconnectHandler(
 			func(nc *nats.Conn) {
