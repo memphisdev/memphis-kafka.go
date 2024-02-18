@@ -72,10 +72,10 @@ type Update struct {
 }
 
 type SchemaUpdateReq struct {
-	MasterMsgName string
-	FileName      string
-	SchemaID      string
-	Desc          []byte
+	MasterMsgName string `json:"master_msg_name"`
+	FileName      string `json:"file_name"`
+	SchemaID      string `json:"schema_id"`
+	Desc          []byte `json:"desc"`
 }
 
 type GetSchemaReq struct {
