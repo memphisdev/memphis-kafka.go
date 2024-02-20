@@ -218,7 +218,7 @@ func ConfigHandler(clientType string, config *sarama.Config) ClientConfig {
 	return conf
 }
 
-func Init(token string, config interface{}, options ...Option) *sarama.Config {
+func Init(token, host string, config interface{}, options ...Option) *sarama.Config {
 
 	sconfig := config.(*sarama.Config)
 	newConfig := *sconfig
@@ -245,7 +245,7 @@ func Init(token string, config interface{}, options ...Option) *sarama.Config {
 	newClient := &Client{Config: conf}
 
 	if BrokerConnection == nil {
-		err := InitializeNatsConnection(token, opts.Host)
+		err := InitializeNatsConnection(token, host)
 		if err != nil {
 			fmt.Println("superstream: ", err.Error())
 			return &newConfig
@@ -277,13 +277,6 @@ func Init(token string, config interface{}, options ...Option) *sarama.Config {
 
 func Close() {
 	BrokerConnection.Close()
-}
-
-func Host(host string) Option {
-	return func(o *Options) error {
-		o.Host = host
-		return nil
-	}
 }
 
 func ConsumerGroup(consumerGroup string) Option {
@@ -606,7 +599,7 @@ func sendClientErrorsToBE(errMsg string) {
 }
 
 func (c *Client) reportClientsUpdate() {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(30 * time.Second)
 	for {
 		select {
 		case <-ticker.C:
