@@ -15,6 +15,7 @@ func main() {
 	config.Producer.Return.Errors = true
 	config.Producer.Flush.MaxMessages = 10
 	config.Producer.RequiredAcks = sarama.NoResponse
+	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 	// confluent config
 	config.Net.SASL.Enable = true
@@ -25,7 +26,7 @@ func main() {
 	config.Net.TLS.Config = nil
 
 	// before every producer/consumer creation you need to call superstream.Init
-	config = superstream.Init("token", config, superstream.Servers(broker))
+	config = superstream.Init("token", "superstream-host", config, superstream.Servers(broker))
 
 	producer, err := sarama.NewSyncProducer([]string{broker}, config)
 	if err != nil {
@@ -41,7 +42,7 @@ func main() {
 		panic(err)
 	}
 
-	config = superstream.Init("token", config, superstream.Servers(broker))
+	config = superstream.Init("token", "superstream-host", config, superstream.Servers(broker))
 
 	producer2, err := sarama.NewSyncProducer([]string{broker}, config)
 	if err != nil {
@@ -57,7 +58,7 @@ func main() {
 		panic(err)
 	}
 
-	config = superstream.Init("token", config, superstream.ConsumerGroup("group"), superstream.Servers(broker))
+	config = superstream.Init("token", "superstream-host", config, superstream.ConsumerGroup("group"))
 
 	consumer, err := sarama.NewConsumerGroup([]string{broker}, "group", config)
 	if err != nil {
