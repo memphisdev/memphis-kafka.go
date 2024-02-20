@@ -1,3 +1,3 @@
 package superstream
 
-var sdkVersion = "1.0.0"
+var sdkVersion = "1.0.1"
