@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	broker := "..."
+	brokers := []string{"...", "..."}
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.Return.Errors = true
@@ -26,9 +26,9 @@ func main() {
 	config.Net.TLS.Config = nil
 
 	// before every producer/consumer creation you need to call superstream.Init
-	config = superstream.Init("token", "superstream-host", config, superstream.Servers(broker))
+	config = superstream.Init("token", "superstream-host", config, superstream.Servers(brokers))
 
-	producer, err := sarama.NewSyncProducer([]string{broker}, config)
+	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		panic(err)
 	}
@@ -42,9 +42,9 @@ func main() {
 		panic(err)
 	}
 
-	config = superstream.Init("token", "superstream-host", config, superstream.Servers(broker))
+	config = superstream.Init("token", "superstream-host", config, superstream.Servers(brokers))
 
-	producer2, err := sarama.NewSyncProducer([]string{broker}, config)
+	producer2, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +60,7 @@ func main() {
 
 	config = superstream.Init("token", "superstream-host", config, superstream.ConsumerGroup("group"))
 
-	consumer, err := sarama.NewConsumerGroup([]string{broker}, "group", config)
+	consumer, err := sarama.NewConsumerGroup(brokers, "group", config)
 	if err != nil {
 		panic(err)
 	}
