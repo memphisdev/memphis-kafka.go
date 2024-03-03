@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/IBM/sarama"
 	"github.com/memphisdev/superstream.go"
 )
+
+type Person struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+}
 
 func main() {
 	brokers := []string{"...", "..."}
@@ -34,9 +40,15 @@ func main() {
 	}
 	defer producer.Close()
 
+	person1 := Person{Name: "John", Age: 30}
+	jsonMsg, err := json.Marshal(person1)
+	if err != nil {
+		panic(err)
+	}
+
 	_, _, err = producer.SendMessage(&sarama.ProducerMessage{
 		Topic: "test",
-		Value: sarama.StringEncoder("test"),
+		Value: sarama.ByteEncoder(jsonMsg),
 	})
 	if err != nil {
 		panic(err)
@@ -50,9 +62,15 @@ func main() {
 	}
 	defer producer.Close()
 
+	person2 := Person{Name: "Jane", Age: 25}
+	jsonMsg, err = json.Marshal(person2)
+	if err != nil {
+		panic(err)
+	}
+
 	_, _, err = producer2.SendMessage(&sarama.ProducerMessage{
 		Topic: "test2",
-		Value: sarama.StringEncoder("test2"),
+		Value: sarama.ByteEncoder(jsonMsg),
 	})
 	if err != nil {
 		panic(err)
