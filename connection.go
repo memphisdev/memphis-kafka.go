@@ -286,9 +286,9 @@ func ConsumerGroup(consumerGroup string) Option {
 	}
 }
 
-func Servers(servers string) Option {
+func Servers(servers []string) Option {
 	return func(o *Options) error {
-		o.Servers = servers
+		o.Servers = strings.Join(servers, ",")
 		return nil
 	}
 }
