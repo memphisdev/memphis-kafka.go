@@ -231,7 +231,7 @@ func Init(token, host string, config interface{}, options ...Option) *sarama.Con
 	for _, opt := range options {
 		if opt != nil {
 			if err := opt(&opts); err != nil {
-				fmt.Printf("superstream: error initializing superstream: Wrong option: %s", err.Error())
+				fmt.Printf("superstream: error initializing Wrong option: %s", err.Error())
 				return &newConfig
 			}
 		}
@@ -286,9 +286,9 @@ func ConsumerGroup(consumerGroup string) Option {
 	}
 }
 
-func Servers(servers string) Option {
+func Servers(servers []string) Option {
 	return func(o *Options) error {
-		o.Servers = servers
+		o.Servers = strings.Join(servers, ",")
 		return nil
 	}
 }
@@ -311,7 +311,6 @@ func GetDefaultOptions() Options {
 }
 
 func InitializeNatsConnection(token, host string) error {
-
 	opts := []nats.Option{
 		nats.MaxReconnects(-1),
 		nats.Timeout(30 * time.Second),
@@ -326,7 +325,7 @@ func InitializeNatsConnection(token, host string) error {
 				for _, c := range Clients {
 					natsConnectionID, err := generateNatsConnectionID()
 					if err != nil {
-						c.handleError(fmt.Sprintf(" InitializeNatsConnection at generateNatsConnectionID: %v", err.Error()))
+						c.handleError(fmt.Sprintf("InitializeNatsConnection at generateNatsConnectionID: %v", err.Error()))
 						return
 					}
 
@@ -337,13 +336,13 @@ func InitializeNatsConnection(token, host string) error {
 
 					clientReconnectionUpdateReqBytes, err := json.Marshal(clientReconnectionUpdateReq)
 					if err != nil {
-						c.handleError(fmt.Sprintf(" InitializeNatsConnection at Marshal %v", err.Error()))
+						c.handleError(fmt.Sprintf("InitializeNatsConnection at Marshal %v", err.Error()))
 						return
 					}
 
 					_, err = nc.Request(clientReconnectionUpdateSubject, clientReconnectionUpdateReqBytes, 30*time.Second)
 					if err != nil {
-						c.handleError(fmt.Sprintf(" InitializeNatsConnection at nc.Request %v", err.Error()))
+						c.handleError(fmt.Sprintf("InitializeNatsConnection at nc.Request %v", err.Error()))
 						return
 					}
 				}
@@ -366,7 +365,7 @@ func InitializeNatsConnection(token, host string) error {
 
 	js, err := nc.JetStream()
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting with superstream: %v", err)
+		return fmt.Errorf("error connecting with superstream: %v", err)
 	}
 
 	BrokerConnection = nc
@@ -374,7 +373,7 @@ func InitializeNatsConnection(token, host string) error {
 
 	natsConnectionID, err := generateNatsConnectionID()
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting with superstream: %v", err)
+		return fmt.Errorf("error connecting with superstream: %v", err)
 	}
 	NatsConnectionID = natsConnectionID
 
@@ -392,18 +391,18 @@ func (c *Client) RegisterClient() error {
 
 	registerReqBytes, err := json.Marshal(registerReq)
 	if err != nil {
-		return fmt.Errorf("superstream: error registering client: %v", err)
+		return fmt.Errorf("error registering client: %v", err)
 	}
 
 	resp, err := BrokerConnection.Request(clientRegisterSubject, registerReqBytes, 30*time.Second)
 	if err != nil {
-		return fmt.Errorf("superstream: error registering client: %v", err)
+		return fmt.Errorf("error registering client: %v", err)
 	}
 
 	var registerResp RegisterResp
 	err = json.Unmarshal(resp.Data, &registerResp)
 	if err != nil {
-		return fmt.Errorf("superstream: error registering client: %v", err)
+		return fmt.Errorf("error registering client: %v", err)
 	}
 
 	c.ClientID = registerResp.ClientID
@@ -438,7 +437,7 @@ func (c *Client) SubscribeUpdates() error {
 	var err error
 	cus.Subscription, err = BrokerConnection.Subscribe(fmt.Sprintf(superstreamClientUpdatesSubject, c.ClientID), cus.SubscriptionHandler())
 	if err != nil {
-		return fmt.Errorf("superstream: error connecting with superstream %v", err)
+		return fmt.Errorf("error connecting with superstream %v", err)
 	}
 
 	return nil
@@ -453,7 +452,7 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 				var schemaUpdateReq SchemaUpdateReq
 				err := json.Unmarshal(msg.Payload, &schemaUpdateReq)
 				if err != nil {
-					client.handleError(fmt.Sprintf(" UpdatesHandler at json.Unmarshal: %v", err.Error()))
+					client.handleError(fmt.Sprintf("UpdatesHandler at json.Unmarshal: %v", err.Error()))
 				}
 				desc := client.compileMsgDescriptor(schemaUpdateReq.Desc, schemaUpdateReq.MasterMsgName, schemaUpdateReq.FileName)
 				if desc != nil {
@@ -461,7 +460,7 @@ func (c *ClientUpdateSub) UpdatesHandler() {
 					client.ProducerSchemaID = schemaUpdateReq.SchemaID
 
 				} else {
-					client.handleError(fmt.Sprintf("UpdatesHandler: error compiling schema"))
+					client.handleError("UpdatesHandler: error compiling schema")
 				}
 			}
 		}
@@ -473,7 +472,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 		var update Update
 		err := json.Unmarshal(msg.Data, &update)
 		if err != nil {
-			Clients[c.ClientID].handleError(fmt.Sprintf(" SubscriptionHandler at json.Unmarshal: %v", err.Error()))
+			Clients[c.ClientID].handleError(fmt.Sprintf("SubscriptionHandler at json.Unmarshal: %v", err.Error()))
 		}
 		c.UpdateCahn <- update
 	}
@@ -482,7 +481,7 @@ func (c *ClientUpdateSub) SubscriptionHandler() nats.MsgHandler {
 func (c *Client) SendLearningMessage(msg []byte) {
 	_, err := JSContext.Publish(fmt.Sprintf(superstreamLearningSubject, c.ClientID), msg)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" SendLearningMessage at Publish %v", err.Error()))
+		c.handleError(fmt.Sprintf("SendLearningMessage at Publish %v", err.Error()))
 	}
 }
 
@@ -492,7 +491,7 @@ func (c *Client) SendRegisterSchemaReq() {
 	}
 	_, err := JSContext.Publish(fmt.Sprintf(superstreamRegisterSchemaSubject, c.ClientID), []byte(""))
 	if err != nil {
-		c.handleError(fmt.Sprintf(" SendRegisterSchemaReq at Publish %v", err.Error()))
+		c.handleError(fmt.Sprintf("SendRegisterSchemaReq at Publish %v", err.Error()))
 	} else {
 		c.LearningRequestSent = true
 	}
@@ -502,19 +501,19 @@ func (c *Client) compileMsgDescriptor(desc []byte, MasterMsgName, fileName strin
 	descriptorSet := descriptorpb.FileDescriptorSet{}
 	err := proto.Unmarshal(desc, &descriptorSet)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" compileMsgDescriptor at proto.Unmarshal %v", err.Error()))
+		c.handleError(fmt.Sprintf("compileMsgDescriptor at proto.Unmarshal %v", err.Error()))
 		return nil
 	}
 
 	localRegistry, err := protodesc.NewFiles(&descriptorSet)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" compileMsgDescriptor at protodesc.NewFiles %v", err.Error()))
+		c.handleError(fmt.Sprintf("compileMsgDescriptor at protodesc.NewFiles %v", err.Error()))
 		return nil
 	}
 
 	fileDesc, err := localRegistry.FindFileByPath(fileName)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" compileMsgDescriptor at FindFileByPath %v", err.Error()))
+		c.handleError(fmt.Sprintf("compileMsgDescriptor at FindFileByPath %v", err.Error()))
 		return nil
 	}
 
@@ -530,21 +529,21 @@ func (c *Client) SentGetSchemaRequest(schemaID string) error {
 
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" compileMsgDescriptor at json.Marshal %v", err.Error()))
+		c.handleError(fmt.Sprintf("compileMsgDescriptor at json.Marshal %v", err.Error()))
 		c.GetSchemaRequestSent = false
 		return err
 	}
 
 	msg, err := BrokerConnection.Request(fmt.Sprintf(superstreamGetSchemaSubject, c.ClientID), reqBytes, 30*time.Second)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" compileMsgDescriptor at Request %v", err.Error()))
+		c.handleError(fmt.Sprintf("compileMsgDescriptor at Request %v", err.Error()))
 		c.GetSchemaRequestSent = false
 		return err
 	}
 	var resp SchemaUpdateReq
 	err = json.Unmarshal(msg.Data, &resp)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" compileMsgDescriptor at json.Unmarshal %v", err.Error()))
+		c.handleError(fmt.Sprintf("compileMsgDescriptor at json.Unmarshal %v", err.Error()))
 		c.GetSchemaRequestSent = false
 		return err
 	}
@@ -552,7 +551,7 @@ func (c *Client) SentGetSchemaRequest(schemaID string) error {
 	if desc != nil {
 		c.ConsumerProtoDescMap[resp.SchemaID] = desc
 	} else {
-		c.handleError(fmt.Sprintf(" compileMsgDescriptor: error compiling schema"))
+		c.handleError("compileMsgDescriptor: error compiling schema")
 		c.GetSchemaRequestSent = false
 		return fmt.Errorf("superstream: error compiling schema")
 	}
@@ -574,12 +573,12 @@ func (c *Client) SendClientTypeUpdateReq(clientType string) {
 
 	clientTypeUpdateReqBytes, err := json.Marshal(clientTypeUpdateReq)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" SendClientTypeUpdateReq at json.Marshal %v", err.Error()))
+		c.handleError(fmt.Sprintf("SendClientTypeUpdateReq at json.Marshal %v", err.Error()))
 	}
 
 	err = BrokerConnection.Publish(clientTypeUpdateSubject, clientTypeUpdateReqBytes)
 	if err != nil {
-		c.handleError(fmt.Sprintf(" SendClientTypeUpdateReq at Publish %v", err.Error()))
+		c.handleError(fmt.Sprintf("SendClientTypeUpdateReq at Publish %v", err.Error()))
 	}
 }
 

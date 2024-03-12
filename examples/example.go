@@ -2,14 +2,20 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/IBM/sarama"
 	"github.com/memphisdev/superstream.go"
 )
 
+type Person struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+}
+
 func main() {
-	broker := "..."
+	brokers := []string{"...", "..."}
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.Return.Errors = true
@@ -26,33 +32,45 @@ func main() {
 	config.Net.TLS.Config = nil
 
 	// before every producer/consumer creation you need to call superstream.Init
-	config = superstream.Init("token", "superstream-host", config, superstream.Servers(broker))
+	config = superstream.Init("token", "superstream-host", config, superstream.Servers(brokers))
 
-	producer, err := sarama.NewSyncProducer([]string{broker}, config)
+	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		panic(err)
 	}
 	defer producer.Close()
 
+	person1 := Person{Name: "John", Age: 30}
+	jsonMsg, err := json.Marshal(person1)
+	if err != nil {
+		panic(err)
+	}
+
 	_, _, err = producer.SendMessage(&sarama.ProducerMessage{
 		Topic: "test",
-		Value: sarama.StringEncoder("test"),
+		Value: sarama.ByteEncoder(jsonMsg),
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	config = superstream.Init("token", "superstream-host", config, superstream.Servers(broker))
+	config = superstream.Init("token", "superstream-host", config, superstream.Servers(brokers))
 
-	producer2, err := sarama.NewSyncProducer([]string{broker}, config)
+	producer2, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		panic(err)
 	}
 	defer producer.Close()
 
+	person2 := Person{Name: "Jane", Age: 25}
+	jsonMsg, err = json.Marshal(person2)
+	if err != nil {
+		panic(err)
+	}
+
 	_, _, err = producer2.SendMessage(&sarama.ProducerMessage{
 		Topic: "test2",
-		Value: sarama.StringEncoder("test2"),
+		Value: sarama.ByteEncoder(jsonMsg),
 	})
 	if err != nil {
 		panic(err)
@@ -60,7 +78,7 @@ func main() {
 
 	config = superstream.Init("token", "superstream-host", config, superstream.ConsumerGroup("group"))
 
-	consumer, err := sarama.NewConsumerGroup([]string{broker}, "group", config)
+	consumer, err := sarama.NewConsumerGroup(brokers, "group", config)
 	if err != nil {
 		panic(err)
 	}
