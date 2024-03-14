@@ -102,7 +102,6 @@ func (s *SaramaProducerInterceptor) OnSend(msg *sarama.ProducerMessage) {
 		}
 	} else {
 		s.Client.Counters.TotalBytesAfterReduction += int64(len(byte_msg))
-		s.Client.Counters.TotalMessagesFailedProduce++
 		if s.Client.LearningFactorCounter <= s.Client.LearningFactor {
 			s.Client.SendLearningMessage(byte_msg)
 			s.Client.LearningFactorCounter++
