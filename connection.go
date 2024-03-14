@@ -306,7 +306,7 @@ func LearningFactor(learningFactor int) Option {
 
 func GetDefaultOptions() Options {
 	return Options{
-		Host: "broker.superstream.dev",
+		Host: "",
 	}
 }
 
