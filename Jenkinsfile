@@ -32,7 +32,7 @@ pipeline {
                 withCredentials([sshUserPrivateKey(keyFileVariable:'check',credentialsId: 'main-github')]) {
                     sh "GIT_SSH_COMMAND='ssh -i $check' git push origin v$versionTag"
                 }
-                sh "GOPROXY=proxy.golang.org /usr/local/go/bin/go list -m github.com/memphisdev/superstream.go@v$versionTag"
+                sh "GOPROXY=proxy.golang.org /usr/local/go/bin/go list -m github.com/superstreamlabs/superstream.go@v$versionTag"
                 }
         }
       stage('Checkout to version branch'){
